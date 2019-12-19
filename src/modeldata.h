@@ -1,3 +1,6 @@
+#ifndef __MODELDATA_H__
+#define __MODELDATA_H__
+
 /* MODEL DATA INSERT */
 
 /* UVES sky spectral line atlas -- # lines, followed by wavelength table and intensity
@@ -9860,3 +9863,4 @@ double MKTrans_3mm[] = {
 0.990475, 0.986259, 0.976040, 0.945221, 0.858945, 0.729780, 0.720239, 0.833835, 0.878305, 0.876236, 0.921103, 0.967085, 0.984454, 0.988326, 0.984611, 0.980975, 0.987470, 0.994422, 0.996873, 0.997710,
 0.998172};
 
+#endif
