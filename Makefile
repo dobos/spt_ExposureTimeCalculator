@@ -1,3 +1,4 @@
+debug : all
 all :
 	cd src; make
 #	./set_path.py
