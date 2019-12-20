@@ -136,7 +136,7 @@ class Etc(object):
         C = 0
         if self.params['OVERWRITE'].lower() == 'no' or self.params['OVERWRITE'].lower() == 'n':
             if os.path.exists(self.params['OUTFILE_NOISE']):
-                print("Error: %s already exists... " % (args.OUTFILE_NOISE))
+                print("Error: %s already exists... " % (self.params['OUTFILE_NOISE']))
                 C += 1
             if os.path.exists(self.params['OUTFILE_SNC']):
                 print("Error: %s already exists... " % (self.params['OUTFILE_SNC']))
