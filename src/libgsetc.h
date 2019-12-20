@@ -95,20 +95,32 @@ typedef struct {
 } OBS_ATTRIB;
 
 /* Added by Y.Moritani for input mag. file: 20150422 */
-double *lambda_inmag, *mag_inmag; 
-double *lambda_inmag2, *mag_inmag2; 
-int num_inmag;
-int num_inmag2;
+/* Modified by L.Dobos to use struct and pass around variable> 20191219 */
+typedef struct {
+  double* lambda_inmag;
+  double* mag_inmag;
+  int num_inmag;
+} MAGFILE;
 /* Added by Y.Moritani for input mag. file: 20150422 : end*/
 
 /* Exported functions */
-
-void gsReadSpectrographConfig(char FileName[], SPECTRO_ATTRIB *spectro, double degrade);
 
 double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda,
   double r_eff, double decent, double fieldang, unsigned long flags);
 
 double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, double fieldang);
+
+double gsFracTrace(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, int tr);
+
+double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, unsigned long flags);
+
+double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, 
+  double r_eff, double decent, double fieldang, double t_exp, double lambda, unsigned long flags);
+
+double gsMagToFlux(double mag);
+double gsEBVToAttn(OBS_ATTRIB* obs, double lambda);
+
+double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm);
 
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fieldang,
   double *Noise, double *SkyMod, double t_exp, unsigned long flags);
@@ -119,19 +131,41 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
 
 double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double lambda,
   double F, double sigma_v, double r_eff, double decent, double fieldang, double *Noise,
-  double t_exp, unsigned long flags, int snrType);
+  double t_exp, unsigned long flags, int snrType, MAGFILE* magfile2);
 
 void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag,
   double r_eff, double decent, double fieldang, double *Noise, double t_exp, unsigned long flags,
+  MAGFILE* magfile2,
   double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve);
 
 void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise,
   double fieldang, double t_exp, unsigned long flags);
 
-void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double fieldang,
-  double* Noise, double t_exp, unsigned long flags);
+void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
+  double* Noise, double fieldang, double t_exp, unsigned long flags);
 
 void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
-  double fieldang, double* Noise, double t_exp, unsigned long flags);
+  double* Noise, double fieldang, double t_exp, unsigned long flags);
+
+void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
+  double* Noise, double* sky);
+
+void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, int i_arm, double t_exp, double* Noise);
+
+void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise);
+
+void gsAllocArmVectors(SPECTRO_ATTRIB* spectro, double*** spec);
+void gsFreeArmVectors(SPECTRO_ATTRIB* spectro, double** spec);
+void gsReadMagfile(MAGFILE* magfile, char* filename);
+void gsCopyMagfile(MAGFILE* magfile, MAGFILE* magfile2);
+double gsInterpolateMagfile(MAGFILE* magfile, double lambda);
+void gsPrintCompilerFlags();
+FILE* gsOpenConfigFile(const char* filename);
+void gsCloseConfigFile(FILE* fp);
+FILE* gsOpenOutputFile(const char* filename);
+void gsCloseOutputFile(FILE* fp);
+void gsReadSpectrographConfig(FILE*, SPECTRO_ATTRIB *spectro, double degrade);
+void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs, double* fieldang, double* t_exp);
+void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro, double* fieldang, double* decent, double* t, int* n_exp);
 
 #endif

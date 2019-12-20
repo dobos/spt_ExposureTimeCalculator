@@ -782,8 +782,8 @@ double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   return count;
 }
 
-void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double fieldang,
-  double* Noise, double t_exp, unsigned long flags) {
+void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
+  double* Noise, double fieldang, double t_exp, unsigned long flags) {
 
   long ipix, j;
   double lambda;
@@ -903,7 +903,7 @@ double gsGetSkyContinuum_BigBoss(OBS_ATTRIB* obs, double lambda) {
 }
 
 void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
-  double fieldang, double* Noise, double t_exp, unsigned long flags) {
+  double* Noise, double fieldang, double t_exp, unsigned long flags) {
   
   long ipix, j;
   double lambda;
@@ -921,15 +921,9 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
     lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm];   
     printf("      --> %.0f percent done ...\r",0.02441*ipix);
+    
     /* Atmospheric transmission -- used to remap the continuum model */
-    gsSpectroDist(spectro,obs,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
-    num = den = 0.;
-    for(j=0;j<5*SP_PSF_LEN;j++) {
-      trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*spectro->dl[i_arm],flags);
-      num += FR[j/5]*trans;
-      den += FR[j/5];
-    }
-    trans = num/den;
+    trans = gsAtmTransInst(spectro, obs, i_arm, lambda, flags);
 
     /* Continuum formula -- in photons/s/m^2/arcsec^2/nm.
      * Last 4 bits of skytype determine sky model.
@@ -1011,16 +1005,23 @@ void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
      Noise[ipix] += spectro->diffuse_stray*sky_sysref*sample_factor;
 }
 
-void gsAddDarkReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double t_exp, double* Noise) {
-  
+void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, int i_arm, double t_exp, double* Noise) {
   long ipix;
   double sample_factor;
   double var;
   
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
-  var = (spectro->dark[i_arm]*t_exp*sample_factor + spectro->read[i_arm]*spectro->read[i_arm])
-        * spectro->width[i_arm];
+  var = (spectro->dark[i_arm]*t_exp*sample_factor) * spectro->width[i_arm];
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
+     Noise[ipix] += var;
+}
+
+void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise) {
+  long ipix;
+  double var;
+
+  var = (spectro->read[i_arm]*spectro->read[i_arm]) * spectro->width[i_arm];
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
      Noise[ipix] += var;
 }
@@ -1035,7 +1036,7 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fiel
 
   int i;
   double EFL;
-  long ipix, Npix;
+  long ipix;
   double lmin, lmax, dl, var;
   
   long iref, iline, j;
@@ -1044,22 +1045,24 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fiel
   double trans, num, den, mag, sky_sysref;
   double *sky;
 
+  sample_factor = gsGetSampleFactor(spectro, i_arm);
+
   printf(" //Arm%d//\n",i_arm);
 
-  for(ipix=0;ipix<Npix;ipix++) SkyMod[ipix] = 0.;
-  for(ipix=0;ipix<Npix;ipix++) Noise[ipix] = 0.;
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) SkyMod[ipix] = 0.;
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) Noise[ipix] = 0.;
 
   /* Sky lines */
   gsAddSkyLines(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
 
   /* Sky and lunar continuum */
-  gsAddSkyContinuum(spectro, obs, i_arm, fieldang, Noise, t_exp, flags);
-  gsAddLunarContinuum(spectro, obs, i_arm, fieldang, Noise, t_exp, flags);
+  gsAddSkyContinuum(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
+  gsAddLunarContinuum(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
 
   /* Compute the sky, and add systematic error contribution */
   /* Allocation of sky vector */
   sky = (double*)malloc((size_t)(MAXPIX*sizeof(double)));
-  for(ipix=0;ipix<Npix;ipix++) {
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
     sky[ipix]=Noise[ipix]/sample_factor;
     SkyMod[ipix]=Noise[ipix]/sample_factor;
   }
@@ -1071,7 +1074,8 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fiel
   gsAddStrayLight(spectro, obs, i_arm, Noise, sky);
 
   /* Dark current & read noise contributions */
-  gsAddDarkReadoutNoise(spectro, i_arm, t_exp, Noise);
+  gsAddDarkNoise(spectro, i_arm, t_exp, Noise);
+  gsAddReadoutNoise(spectro, i_arm, Noise);
 
   free((char*)sky);
 
@@ -1193,7 +1197,7 @@ double gsGetSNR(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lamb
  */
 double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double lambda,
   double F, double sigma_v, double r_eff, double decent, double fieldang, double *Noise,
-  double t_exp, unsigned long flags, int snrType) {
+  double t_exp, unsigned long flags, int snrType, MAGFILE* magfile2) {
 
   long ipix,Npix;
   double SNR = 0;
@@ -1208,26 +1212,12 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   if(mag==-99.9) flag=1;
   /* Added by K.Yabe for input mag. file: 20160205 : end */
 
-    /* Added by Y.Moritani for input mag. file: 20150422 */
-    /* interpolate magnitude for a given lambda */
-    /* mag is used as a fllag: -99.9 ... use input file*/
-    kk=0;
-    if(flag){  
-      if(lambda < lambda_inmag2[0]){
-        p1=0; p2=1;
-      } else if(lambda > lambda_inmag2[num_inmag2-1]){
-        p1=num_inmag2-2; p2=num_inmag2-1;
-      } else{
-        for(k=kk; k<num_inmag2-1; k++){
-          if(lambda > lambda_inmag2[k] && lambda <= lambda_inmag2[k+1]){
-            p1=k ; p2 = k+1;
-            kk=k;
-      //fprintf(stderr, "%lf %lf\n",lambda_inmag[k], lambda_inmag[k+1]);
-          }
-        } 
-      }
-      mag = ((lambda-lambda_inmag2[p1])*mag_inmag2[p2] + (lambda_inmag2[p2]-lambda)*mag_inmag2[p1])/(lambda_inmag2[p2]-lambda_inmag2[p1]);
-    }
+  /* Added by Y.Moritani for input mag. file: 20150422 */
+  /* interpolate magnitude for a given lambda */
+  /* mag is used as a fllag: -99.9 ... use input file*/
+  if (flag) {
+    mag = gsInterpolateMagfile(magfile2, lambda);
+  }
 
   /* Atmospheric transmission */
   trans = den = 0.;
@@ -1379,6 +1369,67 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
   return(SNR);
 }
 
+/* Get atmospheric transmission for the continuum by taking instrumental effects into account.
+ */
+double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, unsigned long flags) {
+  int j;
+  double FR[5*SP_PSF_LEN];
+  double den, num;
+  double trans;
+
+  /* Atmospheric transmission */
+  gsSpectroDist(spectro,obs,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
+  num = den = 0.0;
+  for(j=0;j<5*SP_PSF_LEN;j++) {
+    trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*spectro->dl[i_arm],flags);
+    num += FR[j/5]*trans;
+    den += FR[j/5];
+  }
+  trans = num/den;
+  return trans;
+}
+
+double gsMagToFlux(double mag) {
+  double flux;
+  flux = 3.631e-20 * pow(10., -0.4*mag); /* in erg/cm2/s */
+  return flux;
+}
+
+double gsEBVToAttn(OBS_ATTRIB* obs, double lambda) {
+  double attn;    /* attenuation at lambda */
+  attn = pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV);
+  return attn;
+}
+
+double gsPerHertzToPerPixel(SPECTRO_ATTRIB* spectro, int i_arm, double lambda) {
+  return 2.99792458e17*spectro->dl[i_arm]/(lambda*lambda);
+}
+
+/* Compute overall transmission function including reddening, atmosphere and instrument
+ * Do conversion between erg/cm2/s to counts per pixel 
+ * r_eff is galaxy effective radius [arcsec], set 0 for stars
+ * decent is fiber astrometric offset [arcsec]
+*/
+double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, 
+  double r_eff, double decent, double fieldang, double t_exp, double lambda, unsigned long flags) {
+
+  double conv;
+  
+  /* Atmospheric transmission */
+  conv = gsAtmTransInst(spectro, obs, i_arm, lambda, flags);
+  /* Galactic reddening */
+  conv *= gsEBVToAttn(obs, lambda);
+  /* Instrument geometry */
+  conv *= gsGeometricThroughput(spectro,obs,lambda,r_eff,decent,fieldang,flags);
+  /* Line spread function */
+  conv *= gsFracTrace(spectro,obs,i_arm,lambda,0);
+  /* Effective area, including throughput, and time */
+  conv *= PHOTONS_PER_ERG_1NM * lambda * t_exp * gsAeff(spectro,obs,i_arm,lambda,fieldang) * 1e4;
+  /* Convert from per Hz --> l-per pixel */
+  conv *= gsPerHertzToPerPixel(spectro, i_arm, lambda);
+  return conv;
+}
+
 /* Obtains the continuum S/N per pixel per exposure as a function of the source magnitude (AB) in the
  * specified arm. Output is to out_SNR_curve[spectro->npix[i_arm]].
  */
@@ -1386,23 +1437,20 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
 /* Modified by Y.Moritani for input mag. file: 20150422 :*/
 void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag,
   double r_eff, double decent, double fieldang, double *Noise, double t_exp, unsigned long flags,
+  MAGFILE* magfile2,
   double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve) {
 
   int j;
-  long Npix, ipix;
-  double FR[5*SP_PSF_LEN];
-  double trans, den, num, lambda, dl, src_cont, counts;
+  long ipix;
+  double trans, lambda, src_cont, counts;
   double sample_factor;
 
   /* Added by Y.Moritani for input mag. file: 20150422 */
-  int k, p1,p2,kk;
+  int k, p1,p2;
   int flag = 0;
 
   if(mag==-99.9) flag=1;
   /* Added by Y.Moritani for input mag. file: 20150422 : end */
-
-  dl = spectro->dl[i_arm];
-  Npix = spectro->npix[i_arm];
 
   /* Pre-factor for sampling the Poisson distribution */
   sample_factor = 1.0;
@@ -1410,62 +1458,132 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
   if (spectro->Dtype[i_arm]==1) sample_factor = 1.2;
 #endif
 
-  for(ipix=0;ipix<Npix;ipix++) {
-    printf("      --> %.0f percent done ...\r",(i_arm*Npix+(1+ipix))*0.008138);
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
+    printf("      --> %.0f percent done ...\r",(i_arm*spectro->npix[i_arm]+(1+ipix))*0.008138);
     lambda = spectro->lmin[i_arm] + spectro->dl[i_arm]*ipix;
  
     /* Added by Y.Moritani for input mag. file: 20150422 */
     /* interpolate magnitude for a given lambda */
     /* mag is used as a fllag: -99.9 ... use input file*/
+    if(flag) {  
+      mag = gsInterpolateMagfile(magfile2, lambda);
+    }
+    
+    /* Determine how many counts per Hz we get from the object continuum */
+    src_cont = gsMagToFlux(mag); /* in erg/cm2/s */
+    counts = src_cont * gsConversionFunction(spectro,obs,i_arm,r_eff,decent,fieldang,t_exp,lambda,flags);
 
-    kk=0;
-    if(flag){  
-      if(lambda < lambda_inmag2[0]){
-        p1=0; p2=1;
-      } else if(lambda > lambda_inmag2[num_inmag2-1]){
-	       p1=num_inmag2-2; p2=num_inmag2-1;
-      } else{
-	       for(k=kk; k<num_inmag2-1; k++){
-	         if(lambda > lambda_inmag2[k] && lambda <= lambda_inmag2[k+1]){
-	           p1=k ; p2 = k+1;
-	           kk=k;
-	         }
-	       }  
-        }
-        mag = ((lambda-lambda_inmag2[p1])*mag_inmag2[p2] + (lambda_inmag2[p2]-lambda)*mag_inmag2[p1])/(lambda_inmag2[p2]-lambda_inmag2[p1]);
-      }
-      /* Atmospheric transmission */
-      gsSpectroDist(spectro,obs,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
-      num = den = 0.;
-      for(j=0;j<5*SP_PSF_LEN;j++) {
-        trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*dl,flags);
-        num += FR[j/5]*trans;
-        den += FR[j/5];
-      }
-      trans = num/den;
-
-      /* Determine how many counts per Hz we get from the object continuum */
-      src_cont = 3.631e-20 * pow(10., -0.4*mag); /* in erg/cm2/s */
-      counts = src_cont * trans
-               * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
-               * gsGeometricThroughput(spectro,obs,lambda,r_eff,decent,fieldang,flags)
-               * gsFracTrace(spectro,obs,i_arm,lambda,0) 
-               * PHOTONS_PER_ERG_1NM * lambda * t_exp * gsAeff(spectro,obs,i_arm,lambda,fieldang) * 1e4;
-      /* Convert from per Hz --> l-per pixel */
-      counts *= 2.99792458e17*spectro->dl[i_arm]/(lambda*lambda);
-      /* Report S/N ratio */
-      out_SNR_curve[ipix] = counts/sqrt(sample_factor*counts + Noise[ipix]);
-      /* Modified by K. Yabe 20150525 */
-      out_count_curve[ipix] = counts;
-      out_noise_curve[ipix] = sample_factor*counts + Noise[ipix];
-      out_mag_curve[ipix] = mag;
-      out_trans_curve[ipix] = counts / src_cont;
-      out_sample_factor_curve[ipix] = sample_factor;
+    /* Report S/N ratio */
+    out_SNR_curve[ipix] = counts/sqrt(sample_factor*counts + Noise[ipix]);
+    /* Modified by K. Yabe 20150525 */
+    out_count_curve[ipix] = counts;
+    out_noise_curve[ipix] = sample_factor*counts + Noise[ipix];
+    out_mag_curve[ipix] = mag;
+    out_trans_curve[ipix] = counts / src_cont;
+    out_sample_factor_curve[ipix] = sample_factor;
   }
   return;
 }
 
 /* --- I/O FUNCTIONS --- */
+
+void gsPrintCompilerFlags() {
+  /* Tell us what flags are on */
+  printf("Compiler flags:");
+#ifdef DIFFRACTION_OFF
+  printf(" -DDIFFRACTION_OFF");
+#endif
+#ifdef HGCDTE_SUTR
+  printf(" -DHGCDTE_SUTR");
+#endif
+#ifdef NO_OBJ_CONTINUUM
+  printf(" -DNO_OBJ_CONTINUUM");
+#endif
+#ifdef NATURAL_NLINES
+  printf(" -DNATURAL_NLINES");
+#endif
+#ifdef MOONLIGHT_
+  printf(" -DMOONLIGHT_");  
+#endif
+  printf("\n");
+}
+
+/* Open a config file and quit is does not exist.
+ * If file name is -, open stdin
+ */
+FILE* gsOpenConfigFile(const char* filename) {
+  if (!strcmp("-", filename)) {
+    return stdin;
+  } else {
+    FILE* fp;
+    fp = fopen(filename, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "Error: Can't read file: %s\n", filename);
+        exit(1);
+    }
+    return fp;
+  }
+}
+
+void gsCloseConfigFile(FILE* fp) {
+  fclose(fp);
+}
+
+FILE* gsOpenOutputFile(const char* filename) {
+  if (!strcmp("-", filename)) {
+    return stdout;
+  } else {
+    FILE* fp;
+    fp = fopen(filename, "w");
+    if (fp == NULL) {
+        fprintf(stderr, "Error: Can't open file for writing: %s\n", filename);
+        exit(1);
+    }
+    return fp;
+  }
+}
+
+void gsCloseOutputFile(FILE* fp) {
+  fclose(fp);
+}
+
+void gsReadObservationKeyword(char InfoLine[512], const char* keyword, const char* format, void* var)
+{
+  int args;
+  int len = strlen(keyword);
+  if (memcmp(InfoLine, keyword, (size_t)len)==0) {
+    args = sscanf(InfoLine+len+1, "%lg", var);
+    if (args!=1) {
+      fprintf(stderr, "Error: gsReadObservationConfig: Failed to read %s keyword: %d/1 arguments assigned.\n", keyword, args);
+      exit(1);
+    }
+  }
+}
+
+/* Read an observation configuration file
+ * Format:
+ */
+void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs, double* fieldang, double* t_exp) {
+  int args;
+  char InfoLine[512];
+
+  do {
+    if (fgets(InfoLine, 511, fp)==NULL) {
+      InfoLine[0] = '@';
+    }
+    else {
+      gsReadObservationKeyword(InfoLine, "SEEING", "%lg", &(obs->seeing_fwhm_800));
+      gsReadObservationKeyword(InfoLine, "ELEV", "%lg", &(obs->elevation));
+      gsReadObservationKeyword(InfoLine, "ZA", "%lg", &(obs->zenithangle));
+      gsReadObservationKeyword(InfoLine, "LUNARPHASE", "%lg", &(obs->lunarphase));
+      gsReadObservationKeyword(InfoLine, "LUNARANGLE", "%lg", &(obs->lunarangle));
+      gsReadObservationKeyword(InfoLine, "LUNARZA", "%lg", &(obs->lunarZA));
+      gsReadObservationKeyword(InfoLine, "EBV", "%lg", &(obs->EBV));
+      gsReadObservationKeyword(InfoLine, "FIELDANG", "%lg", fieldang);
+      gsReadObservationKeyword(InfoLine, "TEXP", "%lg", t_exp);
+    }
+  } while (InfoLine[0]!='@');
+}
 
 /* Read a spectrograph configuration file.
  * Format:
@@ -1483,8 +1601,7 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
  * ...
  * <lambda_N-1> <Thr(lambda_N-1) [1st]> ... <Thr(lambda_N-1) [5th]>
  */
-void gsReadSpectrographConfig(char FileName[], SPECTRO_ATTRIB *spectro, double degrade) {
-  FILE *fp;
+void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade) {
   int i, i_arm, args;
   char InfoLine[512];
   double *ptr, lmin, lmax;
@@ -1499,15 +1616,9 @@ void gsReadSpectrographConfig(char FileName[], SPECTRO_ATTRIB *spectro, double d
   for(i=0;i<5;i++) spectro->vignette[i] = 1.;
   for(i=0;i<MAXARM;i++) spectro->Dtype[i] = 0;
 
-  fp = fopen(FileName, "r");
-  if (fp==NULL) {
-    fprintf(stderr, "Error: Can't read file: %s\n", FileName);
-    exit(1);
-  }
   do {
     if (fgets(InfoLine, 511, fp)==NULL) {
       InfoLine[0] = '@';
-      fclose(fp);
     }
     else {
       if (memcmp(InfoLine, "OPTICS", (size_t)6)==0) {
@@ -1597,7 +1708,7 @@ void gsReadSpectrographConfig(char FileName[], SPECTRO_ATTRIB *spectro, double d
         spectro->istart[0] = 0;
         for(count=0;count<1000000;count++) {
           if (fgets(InfoLine, 511, fp)==NULL) {
-            fprintf(stderr, "Error: Unexpected EOF: %s @ THRPUT grid point %d\n", FileName, i);
+            fprintf(stderr, "Error: Unexpected EOF: @ THRPUT grid point %d\n", i);
             exit(1);
           }
           if (memcmp(InfoLine, "D", (size_t)1)==0) {
@@ -1688,4 +1799,182 @@ void gsReadSpectrographConfig(char FileName[], SPECTRO_ATTRIB *spectro, double d
   return;
 }
 
+void gsAllocArmVectors(SPECTRO_ATTRIB* spectro, double*** spec) {
+  int ia;
 
+  *spec = (double**)malloc((size_t)(spectro->N_arms*sizeof(double*)));
+  for(ia=0; ia<spectro->N_arms; ia++) 
+    (*spec)[ia] = (double*)calloc((size_t)spectro->npix[ia], sizeof(double));
+}
+
+void gsFreeArmVectors(SPECTRO_ATTRIB* spectro, double** spec) {
+  int ia;
+
+  for(ia=0; ia<spectro->N_arms; ia++) free((char*)(spec[ia]));
+  free((char*)spec);
+}
+
+void gsReadMagfile(MAGFILE* magfile, char* filename) {
+  FILE *in_pipe, *fp;
+  int ia;
+  char command[256], buf[256], dmy[32];
+
+  sprintf(command, "wc %s", filename);
+  if ((in_pipe = popen(command,"r")) == NULL){
+    exit(1);
+  }
+  if(fgets(buf,128, in_pipe)!=NULL)
+    sscanf(buf, "%d %s", &magfile->num_inmag, dmy);
+
+  magfile->lambda_inmag = (double*) malloc(sizeof(double) * magfile->num_inmag);
+  magfile->mag_inmag = (double*) malloc(sizeof(double) * magfile->num_inmag);
+  ia=0;
+  fp=fopen(filename,"r");
+  while(fgets(buf, 256, fp) != NULL){
+    if(strncmp(buf,"#",1) == 0) continue;
+    sscanf(buf, "%lf %lf", magfile->lambda_inmag+ia, magfile->mag_inmag+ia);
+    ia++;
+  }
+  magfile->num_inmag = ia;
+  fclose(fp);  
+}
+
+void gsCopyMagfile(MAGFILE* magfile, MAGFILE* magfile2) {
+  int ia;
+
+  /* Modified by K.Yabe 20160703 */
+  /* Rewritten as a function by L.Dobos on 20191219 */
+  magfile2->lambda_inmag = (double*) malloc(sizeof(double) * (magfile->num_inmag+2));
+  magfile2->mag_inmag = (double*) malloc(sizeof(double) * (magfile->num_inmag+2));
+  if (magfile->lambda_inmag[0]>300.0){
+    magfile2->lambda_inmag[0] = 300.0;
+    magfile2->mag_inmag[0] = 99.9;
+  }
+  else {
+    magfile2->lambda_inmag[0] = magfile->lambda_inmag[0]-1.0;
+    magfile2->mag_inmag[0] = magfile->mag_inmag[0];
+  }
+  ia=0;
+  while(ia<magfile->num_inmag){
+    magfile2->lambda_inmag[ia+1] = magfile->lambda_inmag[ia];
+    magfile2->mag_inmag[ia+1] = magfile->mag_inmag[ia];
+    if (magfile->mag_inmag[ia]<=0.0){
+      magfile2->mag_inmag[ia+1] = 99.9;
+    }
+    else {
+      magfile2->mag_inmag[ia+1] = magfile->mag_inmag[ia];
+    }
+    ia++;
+  }
+  if (magfile->lambda_inmag[ia-1]<1300.0){
+    magfile2->lambda_inmag[ia+1] = 1300.0;
+    magfile2->mag_inmag[ia+1] = 99.9;
+  }
+  else{
+    magfile2->lambda_inmag[ia+1] = magfile->lambda_inmag[ia-1]+1.0;
+    magfile2->mag_inmag[ia+1] = magfile->mag_inmag[ia-1];
+  }
+  magfile2->num_inmag = ia + 2;
+  /* printf("%d %d\n", magfile->num_inmag, magfile2->num_inmag2); */
+}
+
+void gsFreeMagfile(MAGFILE* magfile) {
+  free(magfile->lambda_inmag);
+  free(magfile->mag_inmag);
+}
+
+double gsInterpolateMagfile(MAGFILE* magfile, double lambda) {
+  int p1, p2, k, kk;
+  double mag;
+  
+  /* Added by Y.Moritani for input mag. file: 20150422 */
+  /* interpolate magnitude for a given lambda */
+  /* mag is used as a fllag: -99.9 ... use input file*/
+  /* Updated by to be a function and use a struct as input L.Dobos on 20191219 */
+  kk=0;
+  if(lambda < magfile->lambda_inmag[0]){
+    p1=0; p2=1;
+  } else if(lambda > magfile->lambda_inmag[magfile->num_inmag-1]){
+    p1=magfile->num_inmag-2; p2=magfile->num_inmag-1;
+  } else{
+    for(k=kk; k<magfile->num_inmag-1; k++){
+      if(lambda > magfile->lambda_inmag[k] && lambda <= magfile->lambda_inmag[k+1]){
+        p1=k ; p2 = k+1;
+        kk=k;
+        //fprintf(stderr, "%lf %lf\n",magfile2->lambda_inmag[k], magfile2->lambda_inmag[k+1]);
+      }
+    } 
+  }
+  mag = ((lambda-magfile->lambda_inmag[p1])*magfile->mag_inmag[p2] + (magfile->lambda_inmag[p2]-lambda)*magfile->mag_inmag[p1])/(magfile->lambda_inmag[p2]-magfile->lambda_inmag[p1]);
+  return mag;
+}
+
+void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro, double* fieldang, double* decent, double* t, int* n_exp) {
+  /* Made into a function by L.Dobos on 20191219 */
+  /* Input observing conditions from stdin */
+
+    /* Get observational conditions */
+  /* Modified by Y.Moritnani -- 2016.02.16 */
+
+  //printf("Enter observational conditions [hexadecimal code; suggested=11005]: ");
+  if(scanf("%lx", &(obs->skytype))==EOF)
+    obs->skytype = 0x10005;
+  /*
+  #if 0
+    obs.skytype = 0x10005;
+  #endif
+  */
+  /* Input observing conditions */
+
+  //printf("Enter seeing [arcsec FWHM @ lambda=800nm]: ");
+  if(scanf("%lg", &(obs->seeing_fwhm_800))==EOF)
+    obs->seeing_fwhm_800 = 0.8; 
+
+  //printf("Enter zenith angle [degrees]: ");
+  if(scanf("%lg", &(obs->zenithangle))==EOF)
+    obs->zenithangle=45.;
+
+  //printf("Enter Galactic dust column [magnitudes E(B-V)]: ");
+  if(scanf("%lg", &(obs->EBV))==EOF)
+    obs->EBV = 0.00;
+
+  //printf("Enter field angle [degrees]: ");
+  if(scanf("%lg", fieldang)==EOF)
+    *fieldang = 0.675;
+
+  //printf("Enter fiber astrometric offset [arcsec]: ");
+  if(scanf("%lg", decent)==EOF)
+    *decent = 0.00;
+
+  /* Moon conditions -- set Moon below horizon unless otherwise indicated */
+  obs->lunarZA = 135.;
+  obs->lunarangle = 90.;
+  obs->lunarphase = 0.25;
+#ifdef MOONLIGHT_
+  //printf("Enter Moonlight conditions:\n");
+  //printf("  Angle (Moon-Zenith) [deg]: ");
+  if(scanf("%lg", &(obs->lunarZA))==EOF)
+    obs->lunarZA=30.;
+  //printf("  Angle (Moon-target) [deg]: ");
+  if(scanf("%lg", &(obs->lunarangle))==EOF)
+    obs->lunarangle=60.;
+  //printf("  Lunar phase [0=New, 0.25=quarter, 0.5=full]: ");
+  if(scanf("%lg", &(obs->lunarphase))==EOF)
+    obs->lunarphase=0.;
+#endif
+    
+  /* Exposure time and systematics */
+  //printf("Enter time per exposure [s]: ");
+  if(scanf("%lg", t)==EOF)
+    *t=450.;
+  //printf("Enter number of exposures: ");
+  if(scanf("%d", n_exp)==EOF)
+    *n_exp=8;
+  //printf("Enter systematic sky subtraction floor [rms per 1D pixel]: ");
+  if(scanf("%lg", &(spectro->sysfrac))==EOF)
+    spectro->sysfrac=0.01;
+  spectro->sysfrac *= sqrt((double)*n_exp); /* Prevent this from averaging down */
+  //printf("Enter diffuse stray light [fraction of total]: ");
+  if(scanf("%lg", &(spectro->diffuse_stray))==EOF)
+    spectro->diffuse_stray=0.02;
+}

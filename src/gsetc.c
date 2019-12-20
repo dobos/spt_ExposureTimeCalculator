@@ -7,6 +7,9 @@
 
 /* === MAIN PROGRAM === */
 
+/* Reads observation parameters from stdin.
+ * Called by the python wrapper
+ */
 int main(void) {
   FILE *fp, *fq;
   int ia;
@@ -36,10 +39,12 @@ int main(void) {
   long pix;
   double wav, innoise, inskymod;
   int proc, proc_tot;
+  char buf[256];
+
+  MAGFILE inmag, inmag2;
 
   /* Added by Y.Moritani for input mag. file: 20150422*/
-  char InFileMag[256], command[256], buf[256], dmy[32];
-  FILE *in_pipe;
+  char InFileMag[256];
   double mag = 22.5;  /* default value of mag, used as a flag for inputfile*/
 
   /* Added by Y.Moritani for line SNR. file: 20150427*/
@@ -52,23 +57,7 @@ int main(void) {
   double degrade;
 
   /* Tell us what flags are on */
-  printf("Compiler flags:");
-#ifdef DIFFRACTION_OFF
-  printf(" -DDIFFRACTION_OFF");
-#endif
-#ifdef HGCDTE_SUTR
-  printf(" -DHGCDTE_SUTR");
-#endif
-#ifdef NO_OBJ_CONTINUUM
-  printf(" -DNO_OBJ_CONTINUUM");
-#endif
-#ifdef NATURAL_NLINES
-  printf(" -DNATURAL_NLINES");
-#endif
-#ifdef MOONLIGHT_
-  printf(" -DMOONLIGHT_");  
-#endif
-  printf("\n");
+  gsPrintCompilerFlags();
 
   /* Intializations */
   for(j=0;j<NZ_OII;j++) ngal[j] = 0;
@@ -83,7 +72,9 @@ int main(void) {
   if(scanf("%lg", &(degrade))==EOF)
     degrade = 1.0;
 
-  gsReadSpectrographConfig(FileName, &spectro, degrade);
+  fp = gsOpenConfigFile(FileName);
+  gsReadSpectrographConfig(fp, &spectro, degrade);
+  gsCloseConfigFile(fp);
 
   /* Allocate noise vectors */
   spNoise=(double**)malloc((size_t)(spectro.N_arms*sizeof(double*)));
@@ -91,72 +82,7 @@ int main(void) {
   spSky=(double**)malloc((size_t)(spectro.N_arms*sizeof(double*)));
   for(ia=0; ia<spectro.N_arms; ia++) spSky[ia] = (double*)malloc((size_t)(spectro.npix[ia]*sizeof(double)));
 
-  /* Get observational conditions */
-  /* Modified by Y.Moritnani -- 2016.02.16 */
-
-  //printf("Enter observational conditions [hexadecimal code; suggested=11005]: ");
-  if(scanf("%lx", &(obs.skytype))==EOF)
-    obs.skytype = 0x10005;
-/*
-#if 0
-  obs.skytype = 0x10005;
-#endif
-*/
-  /* Input observing conditions */
-
-  //printf("Enter seeing [arcsec FWHM @ lambda=800nm]: ");
-  if(scanf("%lg", &(obs.seeing_fwhm_800))==EOF)
-    obs.seeing_fwhm_800 = 0.8; 
-
-  //printf("Enter zenith angle [degrees]: ");
-  if(scanf("%lg", &(obs.zenithangle))==EOF)
-    obs.zenithangle=45.;
-
-  //printf("Enter Galactic dust column [magnitudes E(B-V)]: ");
-  if(scanf("%lg", &(obs.EBV))==EOF)
-    obs.EBV = 0.00;
-
-  //printf("Enter field angle [degrees]: ");
-  if(scanf("%lg", &fieldang)==EOF)
-    fieldang = 0.675;
-
-  //printf("Enter fiber astrometric offset [arcsec]: ");
-  if(scanf("%lg", &decent)==EOF)
-    decent = 0.00;
-
-  /* Moon conditions -- set Moon below horizon unless otherwise indicated */
-  obs.lunarZA = 135.;
-  obs.lunarangle = 90.;
-  obs.lunarphase = 0.25;
-#ifdef MOONLIGHT_
-  //printf("Enter Moonlight conditions:\n");
-  //printf("  Angle (Moon-Zenith) [deg]: ");
-  if(scanf("%lg", &(obs.lunarZA))==EOF)
-    obs.lunarZA=30.;
-  //printf("  Angle (Moon-target) [deg]: ");
-  if(scanf("%lg", &(obs.lunarangle))==EOF)
-    obs.lunarangle=60.;
-  //printf("  Lunar phase [0=New, 0.25=quarter, 0.5=full]: ");
-  if(scanf("%lg", &(obs.lunarphase))==EOF)
-    obs.lunarphase=0.;
-#endif
-    
-  /* Exposure time and systematics */
-  //printf("Enter time per exposure [s]: ");
-  if(scanf("%lg", &t)==EOF)
-    t=450.;
-  //printf("Enter number of exposures: ");
-  if(scanf("%d", &n_exp)==EOF)
-    n_exp=8;
-  //printf("Enter systematic sky subtraction floor [rms per 1D pixel]: ");
-  if(scanf("%lg", &(spectro.sysfrac))==EOF)
-    spectro.sysfrac=0.01;
-  spectro.sysfrac *= sqrt((double)n_exp); /* Prevent this from averaging down */
-  //printf("Enter diffuse stray light [fraction of total]: ");
-  if(scanf("%lg", &(spectro.diffuse_stray))==EOF)
-    spectro.diffuse_stray=0.02;
-
-  /* Modified by Y.Moritnani -- 2016.02.16 : end */
+  gsReadObsConfig_Legacy(&obs, &spectro, &fieldang, &decent, &t, &n_exp);
 
   /* Output files */
   //printf("Noise data reused?: [1=yes/0=no] ");
@@ -216,58 +142,9 @@ int main(void) {
     exit(1); 
   }
   if (strcmp("-",InFileMag)!=0) {
-    sprintf(command,"wc %s", InFileMag);
-    if ((in_pipe = popen(command,"r")) == NULL){
-      exit(1);
-    }
-    if(fgets(buf,128, in_pipe)!=NULL)
-      sscanf(buf, "%d %s", &num_inmag, dmy);
-
-    lambda_inmag = (double*) malloc(sizeof(double) * num_inmag);
-    mag_inmag = (double*) malloc(sizeof(double) * num_inmag);
-    ia=0;
-    fp=fopen(InFileMag,"r");
-    while(fgets(buf, 256, fp) != NULL){
-      if(strncmp(buf,"#",1) == 0) continue;
-      sscanf(buf, "%lf %lf", lambda_inmag+ia, mag_inmag+ia);
-      ia++;
-    }
-    num_inmag = ia;
+    gsReadMagfile(&inmag, InFileMag);
+    gsCopyMagfile(&inmag, &inmag2);
     mag=-99.9; /* used as a flag for inputfile*/
-  /* Modified by K.Yabe 20160703 */
-    lambda_inmag2 = (double*) malloc(sizeof(double) * (num_inmag+2));
-    mag_inmag2 = (double*) malloc(sizeof(double) * (num_inmag+2));
-    if (lambda_inmag[0]>300.0){
-      lambda_inmag2[0] = 300.0;
-      mag_inmag2[0] = 99.9;
-    }
-    else {
-      lambda_inmag2[0] = lambda_inmag[0]-1.0;
-      mag_inmag2[0] = mag_inmag[0];
-    }
-    ia=0;
-    while(ia<num_inmag){
-      lambda_inmag2[ia+1] = lambda_inmag[ia];
-      mag_inmag2[ia+1] = mag_inmag[ia];
-      if (mag_inmag[ia]<=0.0){
-        mag_inmag2[ia+1] = 99.9;
-      }
-      else {
-        mag_inmag2[ia+1] = mag_inmag[ia];
-      }
-      ia++;
-    }
-    if (lambda_inmag[ia-1]<1300.0){
-      lambda_inmag2[ia+1] = 1300.0;
-      mag_inmag2[ia+1] = 99.9;
-    }
-    else{
-      lambda_inmag2[ia+1] = lambda_inmag[ia-1]+1.0;
-      mag_inmag2[ia+1] = mag_inmag[ia-1];
-    }
-    num_inmag2 = ia + 2;
-/*    printf("%d %d\n", num_inmag, num_inmag2); */
-    fclose(fp);
   }
   /* Added by Y.Moritani for input mag. file: 20150422 : end*/
   //printf("Enter the effective radius of the galaxy [arcsec]:\n");
@@ -320,15 +197,15 @@ int main(void) {
     }
   }
   else {
-      proc+=1;
-      printf("(%d/%d) Computing noise vector ...\n",proc, proc_tot);
+    proc+=1;
+    printf("(%d/%d) Computing noise vector ...\n",proc, proc_tot);
     for(ia=0;ia<spectro.N_arms;ia++)
       gsGetNoise(&spectro,&obs,ia,fieldang,spNoise[ia],spSky[ia],t,0x0);
     fp = fopen(OutFileNoise, "w");
     for(ia=0;ia<spectro.N_arms;ia++) {
       for(i=0;i<spectro.npix[ia];i++) {
-	 fprintf(fp, "%1d %4ld %7.4lf %11.5le %11.5le\n", spectro_arm(&spectro, ia),
-		 i, lambda=spectro.lmin[ia]+spectro.dl[ia]*(i+0.5), spNoise[ia][i], spSky[ia][i]);
+	      fprintf(fp, "%1d %4ld %7.4lf %11.5le %11.5le\n", spectro_arm(&spectro, ia),
+		      i, lambda=spectro.lmin[ia]+spectro.dl[ia]*(i+0.5), spNoise[ia][i], spSky[ia][i]);
       }
       fprintf(fp, "\n");
     }
@@ -390,7 +267,9 @@ int main(void) {
       for(ia=0;ia<spectro.N_arms;ia++) {
         snr[ia] = 0.;
         if (spectro.lmin[ia]<345.5*(1+z) && 345.5*(1+z)<spectro.lmax[ia])
-          snr[ia] = gsGetSNR_Single(&spectro,&obs,ia,mag,345.5*(1+z),flux_emi,sigma_emi,ref_input,decent,fieldang,spNoise[ia],t,0x0,0)*sqrt((double)n_exp);
+          snr[ia] = gsGetSNR_Single(&spectro,&obs,ia,mag,345.5*(1+z),
+          flux_emi,sigma_emi,ref_input,decent,fieldang,spNoise[ia],
+          t,0x0,0, &inmag2)*sqrt((double)n_exp);
         snrtot += snr[ia]*snr[ia];
       }
       snrtot = sqrt(snrtot);
@@ -424,7 +303,9 @@ int main(void) {
       /* Modified by Y. Moritani for input mag. file: 20150422 :*/
       /* Modified by K. Yabe for counts output: 20150525 :*/
       //gsGetSNR_Continuum(&spectro,&obs,ia,22.5,0.0,decent,fieldang,spNoise[ia],t,0x0,snrcont);
-      gsGetSNR_Continuum(&spectro,&obs,ia,mag,ref_input,decent,fieldang,spNoise[ia],t,0x0,snrcont,snrcontcount,snrcontnoise,magcont,snctrans,samplefac);
+      gsGetSNR_Continuum(&spectro,&obs,ia,mag,ref_input,decent,fieldang,spNoise[ia],t,0x0,
+        &inmag2,
+        snrcont,snrcontcount,snrcontnoise,magcont,snctrans,samplefac);
       for(j=0;j<spectro.npix[ia];j++) {
         fprintf(fp, "%1d %4ld %9.3lf %8.4lf %11.5lE %11.5lE %11.5lE %11.5lE %11.5lE %11.5lE  %11.5lE\n",
 		spectro_arm(&spectro, ia), j, spectro.lmin[ia]+spectro.dl[ia]*j,snrcont[j]*sqrt((double)n_exp),snrcontcount[j],spNoise[ia][j],snrcontnoise[j],magcont[j],snctrans[j],samplefac[j],spSky[ia][j]);
@@ -501,5 +382,9 @@ int main(void) {
   free((char*)spNoise);
   for(ia=0; ia<spectro.N_arms; ia++) free((char*)(spSky[ia]));
   free((char*)spSky);
+
+  /* Deallocate magfiles */
+  gsCopyMagfile(&inmag, &inmag2);
+
   return(0);
 }
