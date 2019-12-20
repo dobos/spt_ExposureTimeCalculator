@@ -6,6 +6,7 @@
 #include "libgsetc.h"
 
 /* Compute sky model and systematic error */
+/* Written by L.Dobos base on the original ETC */
 
 typedef struct {
     char* spectroConfig;

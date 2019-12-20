@@ -7,14 +7,14 @@ endif
 CFLAGS = -DHGCDTE_SUTR -DMOONLIGHT_
 LDFLAGS = -lm
 BIN = ../python/pfsspecsim/bin
-TARGETS = gssky gsetc.x
+TARGETS = gsnoise.x gsetc.x
 
 all : $(TARGETS)
 
-gssky : libgsetc.o gssky.o
-	$(CC) $(BIN)/gssky.o $(BIN)/libgsetc.o $(LDFLAGS) $(CFLAGS) $(OPT) -o $(BIN)/gssky
-gssky.o :
-	$(CC) gssky.c $(LDFLAGS) $(CFLAGS) $(OPT) -c -o $(BIN)/gssky.o	
+gsnoise.x : libgsetc.o gsnoise.o
+	$(CC) $(BIN)/gsnoise.o $(BIN)/libgsetc.o $(LDFLAGS) $(CFLAGS) $(OPT) -o $(BIN)/gsnoise.x
+gsnoise.o :
+	$(CC) gsnoise.c $(LDFLAGS) $(CFLAGS) $(OPT) -c -o $(BIN)/gsnoise.o	
 gsetc.x : libgsetc.o gsetc.o
 	$(CC) $(BIN)/gsetc.o $(BIN)/libgsetc.o $(LDFLAGS) $(CFLAGS) $(OPT) -o $(BIN)/gsetc.x
 gsetc.o :
@@ -25,6 +25,6 @@ libgsetc.o :
 clean :
 	$(RM) $(BIN)/gsetc.x *~
 	$(RM) $(BIN)/gsetc.o *~
-	$(RM) $(BIN)/gssky *~
-	$(RM) $(BIN)/gssky.o *~
+	$(RM) $(BIN)/gsnoise.x *~
+	$(RM) $(BIN)/gsnoise.o *~
 	$(RM) $(BIN)/libgsetc.o *~
