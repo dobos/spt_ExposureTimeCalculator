@@ -247,7 +247,7 @@ int main(void) {
       );
       for(ia=0;ia<spectro.N_arms;ia++)
         fprintf(fp, " %8.4lf", snr[ia]);
-        fprintf(fp, " %8.4lf\n", snrtot);
+      fprintf(fp, " %8.4lf\n", snrtot);
     }
     printf("\n");
     printf(" --> Done.\n");

@@ -72,8 +72,7 @@ typedef struct {
 
 } SPECTRO_ATTRIB;
 
-static int
-spectro_arm(const SPECTRO_ATTRIB *spectro, int ia)
+static int spectro_arm(const SPECTRO_ATTRIB *spectro, int ia)
 {
    if (!spectro->MR) {
       return ia;

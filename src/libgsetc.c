@@ -664,7 +664,7 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
   long iline, iref, j;
   double airmass, rad, sample_factor;
   double lambda, pos;
-  double continuum, count;
+  double count;
   double FR[5*SP_PSF_LEN];
   
   airmass = gsGetAirmass(obs);
@@ -785,13 +785,13 @@ double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
 void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   double* Noise, double fieldang, double t_exp, unsigned long flags) {
 
-  long ipix, j;
+  long ipix;
   double lambda;
   double rad, sample_factor;
   double lunar_cont, lunarphase;
-  double continuum, count;
+  double count;
   double scale_RS, scale_MS;
-  double k, kV;
+  double kV;
   double Istar, f1, f2, alpha, Bmoon;
 
   rad = gsGetFiberRadius(spectro, obs, i_arm, fieldang);
@@ -807,7 +807,6 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
 
       lunar_cont = 0.;
       lunarphase = obs->lunarphase - floor(obs->lunarphase);
-      k = gsAtmContOp(obs,lambda,flags);
 
       switch((obs->skytype>>4) & 0xf) {
 
@@ -905,13 +904,12 @@ double gsGetSkyContinuum_BigBoss(OBS_ATTRIB* obs, double lambda) {
 void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   double* Noise, double fieldang, double t_exp, unsigned long flags) {
   
-  long ipix, j;
+  long ipix;
   double lambda;
   double airmass, rad, sample_factor;
-  double num, den, trans;
+  double trans;
   double continuum, count;
-  double FR[5*SP_PSF_LEN];
-
+  
   airmass = gsGetAirmass(obs);
   rad = gsGetFiberRadius(spectro, obs, i_arm, fieldang);
   sample_factor = gsGetSampleFactor(spectro, i_arm);
@@ -1034,15 +1032,8 @@ void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise) {
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fieldang,
   double *Noise, double *SkyMod, double t_exp, unsigned long flags) {
 
-  int i;
-  double EFL;
   long ipix;
-  double lmin, lmax, dl, var;
-  
-  long iref, iline, j;
-  double pos, lambda, count, rad, continuum;
   double sample_factor;
-  double trans, num, den, mag, sky_sysref;
   double *sky;
 
   sample_factor = gsGetSampleFactor(spectro, i_arm);
@@ -1098,27 +1089,20 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
 
   /* Do computations only over a finite interval, in this case 32 pixels around the feature. */
 #define NP_WIN 32
-  long ipix,iref,Npix;
-  double dl,lmin,lmax;
+  long ipix,iref;
   double pos, counts;
   double FR[NP_WIN];
   double trans, den;
   double x;
 
-  /* Extract the spectrograph parameters for this arm */
-  Npix = spectro->npix[i_arm];
-  lmin = spectro->lmin[i_arm];
-  lmax = spectro->lmax[i_arm];
-  dl = spectro->dl[i_arm];
-
-  for(ipix=0;ipix<Npix;ipix++) Signal[ipix] = 0.;
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) Signal[ipix] = 0.;
 
   /* Find feature location; exit if no signal */
-  pos = (lambda-lmin)/dl;
+  pos = (lambda-spectro->lmin[i_arm])/spectro->dl[i_arm];
   iref = (long)floor(pos-NP_WIN/2.0);
-  if (iref<-NP_WIN || iref>=Npix) return;
+  if (iref<-NP_WIN || iref>=spectro->npix[i_arm]) return;
   if (iref<0) iref=0;
-  if (iref>Npix-NP_WIN) iref=Npix-NP_WIN;
+  if (iref>spectro->npix[i_arm]-NP_WIN) iref=spectro->npix[i_arm]-NP_WIN;
 
   /* Atmospheric transmission */
   trans = den = 0.;
@@ -1136,7 +1120,7 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
            * PHOTONS_PER_ERG_1NM * lambda * t_exp * gsAeff(spectro,obs,i_arm,lambda,fieldang) * 1e4;
 
   /* Get distribution of light over pixels */
-  gsSpectroDist(spectro,obs,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/dl,NP_WIN,FR);
+  gsSpectroDist(spectro,obs,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR);
   for(ipix=0;ipix<NP_WIN;ipix++) Signal[ipix+iref] = FR[ipix]*counts;
   return;
 }
@@ -1204,8 +1188,7 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   double numer, denom;
   double *Signal;
   /* Added by K.Yabe for input mag. file: 20160205 */
-  double counts, ll, trans, den, x;
-  int k, p1=0.,p2=0.,kk;
+  double counts, trans, den, x;
   int flag = 0;
   double src_cont;
 
@@ -1440,13 +1423,11 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
   MAGFILE* magfile2,
   double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve) {
 
-  int j;
   long ipix;
-  double trans, lambda, src_cont, counts;
+  double lambda, src_cont, counts;
   double sample_factor;
 
   /* Added by Y.Moritani for input mag. file: 20150422 */
-  int k, p1,p2;
   int flag = 0;
 
   if(mag==-99.9) flag=1;
@@ -1552,7 +1533,7 @@ void gsReadObservationKeyword(char InfoLine[512], const char* keyword, const cha
   int args;
   int len = strlen(keyword);
   if (memcmp(InfoLine, keyword, (size_t)len)==0) {
-    args = sscanf(InfoLine+len+1, "%lg", var);
+    args = sscanf(InfoLine+len+1, format, var);
     if (args!=1) {
       fprintf(stderr, "Error: gsReadObservationConfig: Failed to read %s keyword: %d/1 arguments assigned.\n", keyword, args);
       exit(1);
@@ -1564,7 +1545,6 @@ void gsReadObservationKeyword(char InfoLine[512], const char* keyword, const cha
  * Format:
  */
 void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs, double* fieldang, double* t_exp) {
-  int args;
   char InfoLine[512];
 
   do {
