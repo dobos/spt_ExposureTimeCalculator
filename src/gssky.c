@@ -29,9 +29,6 @@ int main(int argc, char* argv[]) {
 
     SPECTRO_ATTRIB spectro;
     OBS_ATTRIB obs;
-    double fieldang = 0.675;
-    double t_exp = 900;
-    unsigned long flags = 0;
     
     double** sky;
     double** moon;
@@ -52,14 +49,13 @@ int main(int argc, char* argv[]) {
     gsCloseConfigFile(fp);
 
     fp = gsOpenConfigFile(params.obsConfig);
-    gsReadObservationConfig(fp, &obs, &fieldang, &t_exp);
+    gsReadObservationConfig(fp, &obs);
     gsCloseConfigFile(fp);
     
     // TODO: these are not read from the configs
     //       skytype doesn't really fit into observation
     //       diffuse_stray is OK but would need to change file format
     spectro.diffuse_stray = 0.02;
-    obs.skytype = 0x00011005;
 
     /* Allocate noise vectors */
     gsAllocArmVectors(&spectro, &sky);
@@ -73,15 +69,15 @@ int main(int argc, char* argv[]) {
     printf("Computing sky lines and continuum ...\n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         printf(" //Arm%d//\n", i_arm);
-        gsAddSkyLines(&spectro, &obs, i_arm, sky[i_arm], fieldang, t_exp, flags);
-        gsAddSkyContinuum(&spectro, &obs, i_arm, sky[i_arm], fieldang, t_exp, flags);
+        gsAddSkyLines(&spectro, &obs, i_arm, sky[i_arm]);
+        gsAddSkyContinuum(&spectro, &obs, i_arm, sky[i_arm]);
     }
 
     /* Moon */
     printf("Computing lunar continuum ...\n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         printf(" //Arm%d//\n", i_arm);
-        gsAddLunarContinuum(&spectro, &obs, i_arm, moon[i_arm], fieldang, t_exp, flags);
+        gsAddLunarContinuum(&spectro, &obs, i_arm, moon[i_arm]);
     }
 
     /* Stray light */
@@ -101,7 +97,7 @@ int main(int argc, char* argv[]) {
     printf("Computing dark and readout noise ...\n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         printf(" //Arm%d//\n", i_arm);
-        gsAddDarkNoise(&spectro, i_arm, t_exp, dark[i_arm]);
+        gsAddDarkNoise(&spectro, &obs, i_arm, dark[i_arm]);
         gsAddReadoutNoise(&spectro, i_arm, readout[i_arm]);
     }
 
@@ -112,7 +108,7 @@ int main(int argc, char* argv[]) {
         printf(" //Arm%d//\n", i_arm);
         for(i = 0; i < spectro.npix[i_arm]; i++) {
             lambda = spectro.lmin[i_arm] + spectro.dl[i_arm] * i;
-            conv[i_arm][i] = gsConversionFunction(&spectro, &obs, i_arm, 0, 0, fieldang, t_exp, lambda, flags);
+            conv[i_arm][i] = gsConversionFunction(&spectro, &obs, i_arm, lambda);
         }
     }
     

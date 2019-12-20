@@ -6,6 +6,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338327950288
+#endif
+
 /* VERSION 5 */
 /* MODIFICATION 6 */
 /* [OII] recovery histogram data */
@@ -91,6 +95,12 @@ typedef struct {
   double lunarZA;         /* Angle from the Moon to the zenith, in degrees; set to >90 for no Moon */
   double EBV;             /* Dust reddening column, E(B-V) */
   unsigned long skytype;  /* Bitmask for assumptions on atmospheric conditions */
+  double fieldangle;      /* */
+  double decent;          /* Astrometric positioning error of the fiben, in arcsec */
+  double t_exp;           /* Exposure, time in seconds */
+  int n_exp;              /* Number of (identical) exposures */
+  double r_eff;           /* Galaxy effective radius, set to 0 for stars */
+  unsigned long flags;
 } OBS_ATTRIB;
 
 /* Added by Y.Moritani for input mag. file: 20150422 */
@@ -104,53 +114,32 @@ typedef struct {
 
 /* Exported functions */
 
-double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda,
-  double r_eff, double decent, double fieldang, unsigned long flags);
-
-double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, double fieldang);
-
+double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda);
+double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 double gsFracTrace(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, int tr);
-
-double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, unsigned long flags);
-
-double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, 
-  double r_eff, double decent, double fieldang, double t_exp, double lambda, unsigned long flags);
+double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
+double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 
 double gsMagToFlux(double mag);
 double gsEBVToAttn(OBS_ATTRIB* obs, double lambda);
-
 double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm);
 
-void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fieldang,
-  double *Noise, double *SkyMod, double t_exp, unsigned long flags);
+void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod);
 
 double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double z,
-  double F, double sigma_v, double r_eff, double src_cont, double ROII, double decent,
-  double fieldang, double *Noise, double t_exp, unsigned long flags, int snrType);
+  double F, double sigma_v, double src_cont, double ROII, double *Noise, int snrType);
 
 double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double lambda,
-  double F, double sigma_v, double r_eff, double decent, double fieldang, double *Noise,
-  double t_exp, unsigned long flags, int snrType, MAGFILE* magfile2);
+  double F, double sigma_v, double *Noise, int snrType, MAGFILE* magfile2);
 
-void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag,
-  double r_eff, double decent, double fieldang, double *Noise, double t_exp, unsigned long flags,
-  MAGFILE* magfile2,
+void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double *Noise, MAGFILE* magfile2,
   double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve);
 
-void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise,
-  double fieldang, double t_exp, unsigned long flags);
-
-void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
-  double* Noise, double fieldang, double t_exp, unsigned long flags);
-
-void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
-  double* Noise, double fieldang, double t_exp, unsigned long flags);
-
-void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
-  double* Noise, double* sky);
-
-void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, int i_arm, double t_exp, double* Noise);
-
+void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
+void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
+void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
+void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise, double* sky);
+void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise);
 void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise);
 
 void gsAllocArmVectors(SPECTRO_ATTRIB* spectro, double*** spec);
@@ -164,7 +153,7 @@ void gsCloseConfigFile(FILE* fp);
 FILE* gsOpenOutputFile(const char* filename);
 void gsCloseOutputFile(FILE* fp);
 void gsReadSpectrographConfig(FILE*, SPECTRO_ATTRIB *spectro, double degrade);
-void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs, double* fieldang, double* t_exp);
-void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro, double* fieldang, double* decent, double* t, int* n_exp);
+void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs);
+void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro);
 
 #endif

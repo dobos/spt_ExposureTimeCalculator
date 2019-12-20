@@ -19,14 +19,14 @@ int main(void) {
   char FileName[256], OutFileNoise[256], OutFileSNR[256], OutFileSNRAB[256];
   char InFileOII[256], OutFileOII[256];
   int flag_reused;
-  double lambda, z, t, fieldang, decent;
+  double lambda, z;
   double snr[MAXARM], snrtot, Aeff;
   double **spNoise;
   double **spSky;
   long id;
-  double r_eff, ROII, FOII, contOII, sigma;
+  double ROII, FOII, contOII, sigma;
   double min_SNR = 0.;
-  int n_exp, snrType;
+  int snrType;
   long ngal[NZ_OII], ngtot;
   double snrmax16, mdlf;
   double snrcont[MAXPIX];
@@ -50,10 +50,6 @@ int main(void) {
   /* Added by Y.Moritani for line SNR. file: 20150427*/
   char OutFileSNR2[256];
   double flux_emi, sigma_emi;
-
-  /* Added by K.Yabe: 20160130 */
-  double ref_input;
-
   double degrade;
 
   /* Tell us what flags are on */
@@ -82,7 +78,7 @@ int main(void) {
   spSky=(double**)malloc((size_t)(spectro.N_arms*sizeof(double*)));
   for(ia=0; ia<spectro.N_arms; ia++) spSky[ia] = (double*)malloc((size_t)(spectro.npix[ia]*sizeof(double)));
 
-  gsReadObsConfig_Legacy(&obs, &spectro, &fieldang, &decent, &t, &n_exp);
+  gsReadObsConfig_Legacy(&obs, &spectro);
 
   /* Output files */
   //printf("Noise data reused?: [1=yes/0=no] ");
@@ -148,13 +144,13 @@ int main(void) {
   }
   /* Added by Y.Moritani for input mag. file: 20150422 : end*/
   //printf("Enter the effective radius of the galaxy [arcsec]:\n");
-  if(scanf("%lg", &ref_input)==EOF)
-    ref_input=0.3;
+  if(scanf("%lg", &obs.r_eff)==EOF)
+    obs.r_eff=0.3;
   /* Added by K.Yabe */
 
   /* Encircled energy in fiber */
-  printf("Fiber aperture factor [@800nm, r_eff=%.2lf\"(exp)] = %10.8lf\n", ref_input, gsGeometricThroughput(&spectro, &obs, 800, ref_input, decent, fieldang, 0x0));
-  printf("Fiber aperture factor [@800nm,     point source] = %10.8lf\n", gsGeometricThroughput(&spectro, &obs, 800, 0.0, decent, fieldang, 0x0));
+  printf("Fiber aperture factor [@800nm, r_eff=%.2lf\"(exp)] = %10.8lf\n", obs.r_eff, gsGeometricThroughput(&spectro, &obs, 800));
+  printf("Fiber aperture factor [@800nm,     point source] = %10.8lf\n", gsGeometricThroughput(&spectro, &obs, 800));
 
   proc=0;
   proc_tot=0;
@@ -200,7 +196,7 @@ int main(void) {
     proc+=1;
     printf("(%d/%d) Computing noise vector ...\n",proc, proc_tot);
     for(ia=0;ia<spectro.N_arms;ia++)
-      gsGetNoise(&spectro,&obs,ia,fieldang,spNoise[ia],spSky[ia],t,0x0);
+      gsGetNoise(&spectro,&obs,ia,spNoise[ia],spSky[ia]);
     fp = fopen(OutFileNoise, "w");
     for(ia=0;ia<spectro.N_arms;ia++) {
       for(i=0;i<spectro.npix[ia];i++) {
@@ -231,8 +227,8 @@ int main(void) {
       for(ia=0;ia<spectro.N_arms;ia++) {
         snr[ia] = 0.;
         if (spectro.lmin[ia]<373.8*(1+z) && 371.8*(1+z)<spectro.lmax[ia])
-          snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,flux_emi,sigma_emi,ref_input,0.,1.,decent,fieldang,spNoise[ia],t,0x0,snrType)
-                    *sqrt((double)n_exp);
+          snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,flux_emi,sigma_emi,0.,1.,spNoise[ia],snrType)
+                    *sqrt((double)obs.n_exp);
         snrtot += snr[ia]*snr[ia];
       }
       snrtot = sqrt(snrtot);
@@ -240,10 +236,10 @@ int main(void) {
       Aeff = 0.;
       for(ia=0;ia<spectro.N_arms;ia++)
         if (spectro.lmin[ia]<372.845*(1+z) && 372.845*(1+z)<spectro.lmax[ia])
-          Aeff += gsAeff(&spectro,&obs,ia,372.845*(1+z),fieldang);
+          Aeff += gsAeff(&spectro,&obs,ia,372.845*(1+z));
 
       fprintf(fp, "%6.4lf %7.2lf %7.2lf %8.6lf %8.5lf",
-        z, 372.71*(1+z), 372.98*(1+z), gsGeometricThroughput(&spectro, &obs, 372.845*(1+z), ref_input, decent, 0, 0x0), Aeff
+        z, 372.71*(1+z), 372.98*(1+z), gsGeometricThroughput(&spectro, &obs, 372.845*(1+z)), Aeff
       );
       for(ia=0;ia<spectro.N_arms;ia++)
         fprintf(fp, " %8.4lf", snr[ia]);
@@ -268,8 +264,7 @@ int main(void) {
         snr[ia] = 0.;
         if (spectro.lmin[ia]<345.5*(1+z) && 345.5*(1+z)<spectro.lmax[ia])
           snr[ia] = gsGetSNR_Single(&spectro,&obs,ia,mag,345.5*(1+z),
-          flux_emi,sigma_emi,ref_input,decent,fieldang,spNoise[ia],
-          t,0x0,0, &inmag2)*sqrt((double)n_exp);
+          flux_emi,sigma_emi,spNoise[ia],0,&inmag2)*sqrt((double)obs.n_exp);
         snrtot += snr[ia]*snr[ia];
       }
       snrtot = sqrt(snrtot);
@@ -277,10 +272,10 @@ int main(void) {
       Aeff = 0.;
       for(ia=0;ia<spectro.N_arms;ia++)
         if (spectro.lmin[ia]<345.5*(1+z) && 345.5*(1+z)<spectro.lmax[ia])
-          Aeff += gsAeff(&spectro,&obs,ia,345.5*(1+z),fieldang);
+          Aeff += gsAeff(&spectro,&obs,ia,345.5*(1+z));
 
 /*      fprintf(fp, "%6.4lf %7.2lf %8.6lf %8.5lf", z, 345.5*(1+z), gsGeometricThroughput(&spectro, &obs, 345.5*(1+z), ref_input, decent, 0, 0x0), Aeff); */
-      fprintf(fp, "%7.2lf %8.6lf %8.5lf", 345.5*(1+z), gsGeometricThroughput(&spectro, &obs, 345.5*(1+z), ref_input, decent, fieldang, 0x0), Aeff);
+      fprintf(fp, "%7.2lf %8.6lf %8.5lf", 345.5*(1+z), gsGeometricThroughput(&spectro, &obs, 345.5*(1+z)), Aeff);
       for(ia=0;ia<spectro.N_arms;ia++)
         fprintf(fp, " %8.4lf", snr[ia]);
       fprintf(fp, " %8.4lf\n", snrtot);
@@ -303,12 +298,11 @@ int main(void) {
       /* Modified by Y. Moritani for input mag. file: 20150422 :*/
       /* Modified by K. Yabe for counts output: 20150525 :*/
       //gsGetSNR_Continuum(&spectro,&obs,ia,22.5,0.0,decent,fieldang,spNoise[ia],t,0x0,snrcont);
-      gsGetSNR_Continuum(&spectro,&obs,ia,mag,ref_input,decent,fieldang,spNoise[ia],t,0x0,
-        &inmag2,
+      gsGetSNR_Continuum(&spectro,&obs,ia,mag,spNoise[ia],&inmag2,
         snrcont,snrcontcount,snrcontnoise,magcont,snctrans,samplefac);
       for(j=0;j<spectro.npix[ia];j++) {
         fprintf(fp, "%1d %4ld %9.3lf %8.4lf %11.5lE %11.5lE %11.5lE %11.5lE %11.5lE %11.5lE  %11.5lE\n",
-		spectro_arm(&spectro, ia), j, spectro.lmin[ia]+spectro.dl[ia]*j,snrcont[j]*sqrt((double)n_exp),snrcontcount[j],spNoise[ia][j],snrcontnoise[j],magcont[j],snctrans[j],samplefac[j],spSky[ia][j]);
+		            spectro_arm(&spectro, ia), j, spectro.lmin[ia]+spectro.dl[ia]*j,snrcont[j]*sqrt((double)obs.n_exp),snrcontcount[j],spNoise[ia][j],snrcontnoise[j],magcont[j],snctrans[j],samplefac[j],spSky[ia][j]);
       }
     }
     printf("\n");
@@ -333,8 +327,8 @@ int main(void) {
       for(ia=0;ia<spectro.N_arms;ia++) {
         snr[ia] = 0.;
         if (spectro.lmin[ia]<373.8*(1+z) && 371.8*(1+z)<spectro.lmax[ia])
-          snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,1e-16,70.,0.0,0.0,1.0,decent,fieldang,spNoise[ia],t,0x0,snrType)
-                    *sqrt((double)n_exp)/1.6;
+          snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,1e-16,70.,0.0,1.0,spNoise[ia],snrType)
+                    *sqrt((double)obs.n_exp)/1.6;
         snrtot += snr[ia]*snr[ia];
       }
       snrtot = sqrt(snrtot);   
@@ -342,24 +336,27 @@ int main(void) {
     }
     mdlf = 1e-16/snrmax16*min_SNR*0.9; /* 0.9 is a safety factor */
 
+    /* Modified by L.Dobos */
+    /* Here we override previous r_eff values! */
+
     ngtot = 0;
     fp = fopen(InFileOII, "r");
     fq = fopen(OutFileOII, "w");
     while(fscanf(fp, "%ld %lg %lg %lg %lg %lg %lg",
-      &id, &z, &r_eff, &ROII, &FOII, &contOII, &sigma)!=EOF) {
+      &id, &z, &obs.r_eff, &ROII, &FOII, &contOII, &sigma)!=EOF) {
 
       snrtot = 0.;
-      if (FOII>=mdlf && r_eff>=0.) for(ia=0;ia<spectro.N_arms;ia++) {
+      if (FOII>=mdlf && obs.r_eff>=0.) for(ia=0;ia<spectro.N_arms;ia++) {
         snr[ia] = 0.;
         if (spectro.lmin[ia]<373.8*(1+z) && 371.8*(1+z)<spectro.lmax[ia])
-          snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,FOII,70.,r_eff,contOII,ROII,decent,fieldang,spNoise[ia],t,0x0,snrType)
-                    * sqrt((double)n_exp);
+          snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,FOII,70.,contOII,ROII,spNoise[ia],snrType)
+                    * sqrt((double)obs.n_exp);
         snrtot += snr[ia]*snr[ia];
       }
       snrtot = sqrt(snrtot);
 
       if (snrtot>=min_SNR) {
-        fprintf(fq, "%7ld %5.3lf %5.3lf %11.5lE %9.4lf\n", id, z, r_eff, FOII, snrtot);
+        fprintf(fq, "%7ld %5.3lf %5.3lf %11.5lE %9.4lf\n", id, z, obs.r_eff, FOII, snrtot);
 
         j = (long)floor((z-ZMIN_OII)/DZ_OII);
         if (j>=0 && j<NZ_OII) {ngal[j]++; ngtot++;}

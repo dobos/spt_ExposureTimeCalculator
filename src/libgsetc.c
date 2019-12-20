@@ -293,7 +293,7 @@ double gsGalactic_Alambda__EBV(double lambda) {
 /* Continuum atmospheric opacity in magnitudes per airmass, as a function
  * of wavelength lambda (in nm)
  */
-double gsAtmContOp(OBS_ATTRIB *obs, double lambda, unsigned long flags) {
+double gsAtmContOp(OBS_ATTRIB *obs, double lambda) {
   double k;
 
   k = 0.113; /* V band opacity -- placeholder !!! */
@@ -334,12 +334,12 @@ double gsAtmContOp(OBS_ATTRIB *obs, double lambda, unsigned long flags) {
 /* Atmospheric transmission, as a function of wavelength lambda (in nm)
  * and observing conditions.
  */
-double gsAtmTrans(OBS_ATTRIB *obs, double lambda, unsigned long flags) {
+double gsAtmTrans(OBS_ATTRIB *obs, double lambda) {
   double k, trans;
   double x, xfrac;
   long xint;
 
-  k = gsAtmContOp(obs,lambda,flags);
+  k = gsAtmContOp(obs,lambda);
   trans = pow(10., -0.4*k/cos(obs->zenithangle*DEGREE));
 
   /* Absorption lines */
@@ -407,8 +407,7 @@ double gsAtmTrans(OBS_ATTRIB *obs, double lambda, unsigned long flags) {
  *
  * Returns 0 if failed.
  */
-double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda,
-  double r_eff, double decent, double fieldang, unsigned long flags) {
+double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda) {
 
   int i;
   long iu, Nu;
@@ -420,7 +419,7 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
   du = 0.024;
 
   /* Smearing in arcsec, and the EFL */
-  i = floor(4*fieldang/spectro->rfov);
+  i = floor(4*obs->fieldangle/spectro->rfov);
   if (i<0) {
     sigma = spectro->rms_spot[0];
     EFL = spectro->EFL[0];
@@ -431,10 +430,10 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
     } else {
       sigma = spectro->rms_spot[i]
               + (spectro->rms_spot[i+1]-spectro->rms_spot[i])
-              * (4*fieldang/spectro->rfov-i);
+              * (4*obs->fieldangle/spectro->rfov-i);
       EFL = spectro->EFL[i]
               + (spectro->EFL[i+1]-spectro->EFL[i])
-              * (4*fieldang/spectro->rfov-i);
+              * (4*obs->fieldangle/spectro->rfov-i);
     }
   }
   sigma *= ARCSEC_PER_URAD / EFL; 
@@ -446,7 +445,7 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
   uscale = 0.465/obs->seeing_fwhm_800*pow(lambda/800.,0.2);
 
   /* Galaxy scale length */
-  rs = r_eff/RAT_HL_SL_EXP;
+  rs = obs->r_eff/RAT_HL_SL_EXP;
 
   /* The integral */
   EE = 0.;
@@ -464,7 +463,7 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
     theta_D = 0.;
 #endif
     Gtilde = exp(-k*k*sigma*sigma/2.-pow(u/uscale,1.666666666666666666666666667))
-             * getJ0(k*decent)
+             * getJ0(k*obs->decent)
              * exp(-4./M_PI*u*theta_D);
 
     /* Galaxy profile */
@@ -479,7 +478,7 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
  * throughput factors from the telescope through detector (but
  * not the atmosphere).
  */
-double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, double fieldang) {
+double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda) {
   double Aeff, Thr, fr, Vig;
   int ti, i, imin, imax;
 
@@ -487,7 +486,7 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda
   Aeff = M_PI/4. * spectro->D_outer * spectro->D_outer * (1-spectro->centobs*spectro->centobs);
 
   /* Vignetting */
-  i = floor(4*fieldang/spectro->rfov);  
+  i = floor(4*obs->fieldangle/spectro->rfov);  
   if (i<0) {
     Vig = spectro->vignette[0];
   } else {
@@ -496,7 +495,7 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda
     } else {
       Vig = spectro->vignette[i]
               + (spectro->vignette[i+1]-spectro->vignette[i])
-              * (4*fieldang/spectro->rfov-i);
+              * (4*obs->fieldangle/spectro->rfov-i);
     }
   }
   Aeff *= Vig;
@@ -625,12 +624,12 @@ double gsGetAirmass(OBS_ATTRIB* obs) {
   return airmass;
 }
 
-double gsGetFiberRadius(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double fieldang) {
+double gsGetFiberRadius(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm) {
   int i;
   double EFL, rad;
 
   /* Fiber radius in arcsec */
-  i = floor(4*fieldang/spectro->rfov);
+  i = floor(4*obs->fieldangle/spectro->rfov);
   if (i<0) {
     EFL = spectro->EFL[0]; 
   } else {
@@ -639,7 +638,7 @@ double gsGetFiberRadius(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
     } else {
       EFL = spectro->EFL[i]
               + (spectro->EFL[i+1]-spectro->EFL[i])
-              * (4*fieldang/spectro->rfov-i);
+              * (4*obs->fieldangle/spectro->rfov-i);
     }
   }
   rad = spectro->fiber_ent_rad/EFL * ARCSEC_PER_URAD;
@@ -658,9 +657,7 @@ double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm) {
   return sample_factor;
 }
 
-void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise,
-  double fieldang, double t_exp, unsigned long flags) {
-  
+void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
   long iline, iref, j;
   double airmass, rad, sample_factor;
   double lambda, pos;
@@ -668,7 +665,7 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
   double FR[5*SP_PSF_LEN];
   
   airmass = gsGetAirmass(obs);
-  rad = gsGetFiberRadius(spectro, obs, i_arm, fieldang);
+  rad = gsGetFiberRadius(spectro, obs, i_arm);
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
   for(iline=0;iline<gsSKY_UVES_NLINES;iline++) {
@@ -684,13 +681,13 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
         */
       count = gsSKY_UVES_INT[iline] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
               * gsFracTrace(spectro,obs,i_arm,lambda,1)
-              * gsAeff(spectro,obs,i_arm,lambda,fieldang) * t_exp * M_PI * rad * rad;
+              * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad;
       if (count<0) count=0;
 
       /* Rescale line counts by the airmass; UVES referenced to 1.1. Also by atmospheric
         * extinction curve.
         */
-      count *= airmass/1.1  * exp(-gsAtmContOp(obs,lambda,flags)*airmass/1.086);
+      count *= airmass/1.1  * exp(-gsAtmContOp(obs,lambda)*airmass/1.086);
 
       iref = (long)floor(pos-7.5);
       if (iref<0) iref=0;
@@ -702,9 +699,7 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
   }
 }
 
-void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise,
-  double fieldang, double t_exp, unsigned long flags) {
-
+void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
   long iline, iref, j;
   double airmass, rad, sample_factor;
   double lambda, pos;
@@ -712,7 +707,7 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
   double FR[5*SP_PSF_LEN];
 
   airmass = gsGetAirmass(obs);
-  rad = gsGetFiberRadius(spectro, obs, i_arm, fieldang);
+  rad = gsGetFiberRadius(spectro, obs, i_arm);
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
   /* Now the NIR lines */
@@ -727,14 +722,14 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
         */
       count = OHDATA[2*iline+1] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
               * gsFracTrace(spectro,obs,i_arm,lambda,1)
-              * gsAeff(spectro,obs,i_arm,lambda,fieldang) * t_exp * M_PI * rad * rad;
+              * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad;
       if (count<0) count=0;
   
       /* Rescale line counts by the airmass; referenced to 1.0. Also by atmospheric
         * extinction curve, and the sky brightness from 14.8 mag/as2 Vega --> desired
         * level (currently 15.8 mag/as2 Vega, see UKIRT User Guide).
         */
-      count *= airmass * exp(-gsAtmContOp(obs,lambda,flags)*airmass/1.086)
+      count *= airmass * exp(-gsAtmContOp(obs,lambda)*airmass/1.086)
                 * exp((14.8-15.8)/1.086);
 
       /* This line is within the range of this spectrograph arm.
@@ -750,9 +745,7 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
   }
 }
 
-void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise,
-  double fieldang, double t_exp, unsigned long flags) {
-  
+void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
   printf("  --> Computing Sky Lines Contribution ...\n");
   /* Sky line contributions -- uses VLT/UVES sky model. */
   switch((obs->skytype>>16) & 0xf) {
@@ -762,8 +755,8 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
       break;
 
     case 0x1:
-      gsAddSkyLines_UVES(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
-      gsAddSkyLines_NIR(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
+      gsAddSkyLines_UVES(spectro, obs, i_arm, Noise);
+      gsAddSkyLines_NIR(spectro, obs, i_arm, Noise);
       break;
 
     default:
@@ -773,18 +766,14 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
   }
 }
 
-double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, 
-  double fieldang, double t_exp, double lambda, double continuum, double rad, double sample_factor) {
-  
+double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double lambda, double continuum, double rad) {  
   double count;
-  count = continuum * spectro->dl[i_arm] * gsAeff(spectro,obs,i_arm,lambda,fieldang) * t_exp * M_PI * rad * rad *
+  count = continuum * spectro->dl[i_arm] * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad *
             gsFracTrace(spectro,obs,i_arm,lambda,1);
   return count;
 }
 
-void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
-  double* Noise, double fieldang, double t_exp, unsigned long flags) {
-
+void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
   long ipix;
   double lambda;
   double rad, sample_factor;
@@ -794,7 +783,7 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   double kV;
   double Istar, f1, f2, alpha, Bmoon;
 
-  rad = gsGetFiberRadius(spectro, obs, i_arm, fieldang);
+  rad = gsGetFiberRadius(spectro, obs, i_arm);
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
   printf("  --> Computing Lunar Continuum Contribution ...\n");
@@ -826,7 +815,7 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
           scale_MS = (exp(2480./550.)-1.)/(exp(2480./lambda)-1.) * pow(lambda/550., -4.3);
 
           /* Model for the V band moonlight brightness */
-          kV = gsAtmContOp(obs,550.,flags);
+          kV = gsAtmContOp(obs,550.);
           alpha = 360*fabs(lunarphase-0.5);
           Istar = pow(10., -0.4*(3.84 + 0.026*alpha +4e-9*alpha*alpha*alpha*alpha));
           if (alpha < 7) Istar *= 1.35-0.05*alpha;
@@ -852,7 +841,7 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
 
     }
 
-    count = gsGetCount(spectro, obs, i_arm, fieldang, t_exp, lambda, lunar_cont, rad, sample_factor);
+    count = gsGetCount(spectro, obs, i_arm, lambda, lunar_cont, rad);
     Noise[ipix] += count*sample_factor;
   }
 }
@@ -901,8 +890,7 @@ double gsGetSkyContinuum_BigBoss(OBS_ATTRIB* obs, double lambda) {
   return continuum;
 }
 
-void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
-  double* Noise, double fieldang, double t_exp, unsigned long flags) {
+void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
   
   long ipix;
   double lambda;
@@ -911,7 +899,7 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   double continuum, count;
   
   airmass = gsGetAirmass(obs);
-  rad = gsGetFiberRadius(spectro, obs, i_arm, fieldang);
+  rad = gsGetFiberRadius(spectro, obs, i_arm);
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
   /* Sky continuum contributions. */
@@ -921,7 +909,7 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
     printf("      --> %.0f percent done ...\r",0.02441*ipix);
     
     /* Atmospheric transmission -- used to remap the continuum model */
-    trans = gsAtmTransInst(spectro, obs, i_arm, lambda, flags);
+    trans = gsAtmTransInst(spectro, obs, i_arm, lambda);
 
     /* Continuum formula -- in photons/s/m^2/arcsec^2/nm.
      * Last 4 bits of skytype determine sky model.
@@ -962,14 +950,12 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
     }
 
     continuum *= airmass * trans;
-    count = gsGetCount(spectro, obs, i_arm, fieldang, t_exp, lambda, continuum, rad, sample_factor);
+    count = gsGetCount(spectro, obs, i_arm, lambda, continuum, rad);
     Noise[ipix] += count*sample_factor;
   }
 }
 
-void gsAddSkySubtrError(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
-  double* Noise, double* sky) {
-
+void gsAddSkySubtrError(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise, double* sky) {
   long ipix, j;
   double sky_sysref;
 
@@ -985,9 +971,7 @@ void gsAddSkySubtrError(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
   }
 }
 
-void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
-  double* Noise, double* sky) {
-
+void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise, double* sky) {
   long ipix;
   double sample_factor;
   double sky_sysref;
@@ -1003,14 +987,14 @@ void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
      Noise[ipix] += spectro->diffuse_stray*sky_sysref*sample_factor;
 }
 
-void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, int i_arm, double t_exp, double* Noise) {
+void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise) {
   long ipix;
   double sample_factor;
   double var;
   
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
-  var = (spectro->dark[i_arm]*t_exp*sample_factor) * spectro->width[i_arm];
+  var = (spectro->dark[i_arm]*obs->t_exp*sample_factor) * spectro->width[i_arm];
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
      Noise[ipix] += var;
 }
@@ -1029,8 +1013,7 @@ void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise) {
  * Here t_exp = exposure time (in seconds)
  *      fieldang = field angle in degrees
  */
-void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fieldang,
-  double *Noise, double *SkyMod, double t_exp, unsigned long flags) {
+void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod) {
 
   long ipix;
   double sample_factor;
@@ -1044,11 +1027,11 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fiel
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) Noise[ipix] = 0.;
 
   /* Sky lines */
-  gsAddSkyLines(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
+  gsAddSkyLines(spectro, obs, i_arm, Noise);
 
   /* Sky and lunar continuum */
-  gsAddSkyContinuum(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
-  gsAddLunarContinuum(spectro, obs, i_arm, Noise, fieldang, t_exp, flags);
+  gsAddSkyContinuum(spectro, obs, i_arm, Noise);
+  gsAddLunarContinuum(spectro, obs, i_arm, Noise);
 
   /* Compute the sky, and add systematic error contribution */
   /* Allocation of sky vector */
@@ -1065,7 +1048,7 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fiel
   gsAddStrayLight(spectro, obs, i_arm, Noise, sky);
 
   /* Dark current & read noise contributions */
-  gsAddDarkNoise(spectro, i_arm, t_exp, Noise);
+  gsAddDarkNoise(spectro, obs, i_arm, Noise);
   gsAddReadoutNoise(spectro, i_arm, Noise);
 
   free((char*)sky);
@@ -1084,8 +1067,7 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double fiel
  * fieldang (field angle in degrees; 0 on axis)
  */
 void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda,
-  double F, double sigma_v, double r_eff, double decent, double fieldang, double *Signal,
-  double t_exp, unsigned long flags) {
+  double F, double sigma_v, double *Signal) {
 
   /* Do computations only over a finite interval, in this case 32 pixels around the feature. */
 #define NP_WIN 32
@@ -1107,7 +1089,7 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
   /* Atmospheric transmission */
   trans = den = 0.;
   for(x=-4;x<4.01;x+=.2) {
-    trans += gsAtmTrans(obs,lambda*(1 + x*sigma_v/299792.458),flags) * exp(-0.5*x*x);
+    trans += gsAtmTrans(obs,lambda*(1 + x*sigma_v/299792.458)) * exp(-0.5*x*x);
     den += exp(-0.5*x*x);
   }
   trans /= den;
@@ -1115,9 +1097,9 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
   /* Determine how many counts we get from the object */
   counts = F * trans
            * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
-           * gsGeometricThroughput(spectro,obs,lambda,r_eff,decent,fieldang,flags)
+           * gsGeometricThroughput(spectro,obs,lambda)
            * gsFracTrace(spectro,obs,i_arm,lambda,0)
-           * PHOTONS_PER_ERG_1NM * lambda * t_exp * gsAeff(spectro,obs,i_arm,lambda,fieldang) * 1e4;
+           * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
 
   /* Get distribution of light over pixels */
   gsSpectroDist(spectro,obs,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR);
@@ -1136,8 +1118,7 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
  *  1 = uniform matched filter
  */
 double gsGetSNR(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda,
-  double F, double sigma_v, double r_eff, double decent, double fieldang, double *Noise,
-  double t_exp, unsigned long flags, int snrType) {
+  double F, double sigma_v, double *Noise, int snrType) {
 
   long ipix,Npix;
   double SNR = 0;
@@ -1147,7 +1128,7 @@ double gsGetSNR(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lamb
   /* Allocate and get the signal vector */
   Npix = spectro->npix[i_arm];
   Signal = (double*)malloc((size_t)(Npix*sizeof(double)));
-  gsGetSignal(spectro,obs,i_arm,lambda,F,sigma_v,r_eff,decent,fieldang,Signal,t_exp,flags);
+  gsGetSignal(spectro,obs,i_arm,lambda,F,sigma_v,Signal);
 
   /* 1D optimal */
   if (snrType == 0) {
@@ -1180,8 +1161,7 @@ double gsGetSNR(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lamb
  *  1 = uniform matched filter
  */
 double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double lambda,
-  double F, double sigma_v, double r_eff, double decent, double fieldang, double *Noise,
-  double t_exp, unsigned long flags, int snrType, MAGFILE* magfile2) {
+  double F, double sigma_v, double *Noise, int snrType, MAGFILE* magfile2) {
 
   long ipix,Npix;
   double SNR = 0;
@@ -1205,7 +1185,7 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   /* Atmospheric transmission */
   trans = den = 0.;
   for(x=-4;x<4.01;x+=.2) {
-    trans += gsAtmTrans(obs,lambda,flags) * exp(-0.5*x*x);
+    trans += gsAtmTrans(obs,lambda) * exp(-0.5*x*x);
     den += exp(-0.5*x*x);
   }
   trans /= den;
@@ -1214,9 +1194,9 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   src_cont = 3.631e-20 * pow(10., -0.4*mag); /* in erg/cm2/s */
   counts = src_cont * trans
              * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
-             * gsGeometricThroughput(spectro,obs,lambda,r_eff,decent,fieldang,flags)
+             * gsGeometricThroughput(spectro,obs,lambda)
              * gsFracTrace(spectro,obs,i_arm,lambda,0)
-             * PHOTONS_PER_ERG_1NM * lambda * t_exp * gsAeff(spectro,obs,i_arm,lambda,fieldang) * 1e4;
+             * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
   #ifdef HGCDTE_SUTR
     if (spectro->Dtype[i_arm]==1) counts *= 1.2;
   #endif
@@ -1226,7 +1206,7 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   /* Allocate and get the signal vector */
   Npix = spectro->npix[i_arm];
   Signal = (double*)malloc((size_t)(Npix*sizeof(double)));
-  gsGetSignal(spectro,obs,i_arm,lambda,F,sigma_v,r_eff,decent,fieldang,Signal,t_exp,flags);
+  gsGetSignal(spectro,obs,i_arm,lambda,F,sigma_v,Signal);
 
   /* 1D optimal */
   if (snrType == 0) {
@@ -1264,8 +1244,7 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
  * *sqrt((double)n_exp);
  */
 double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double z,
-  double F, double sigma_v, double r_eff, double src_cont, double ROII, double decent,
-  double fieldang, double *Noise, double t_exp, unsigned long flags, int snrType) {
+  double F, double sigma_v, double src_cont, double ROII, double *Noise, int snrType) {
 
   int i;
   double SNR=0.;
@@ -1294,7 +1273,7 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
   /* Atmospheric transmission */
   trans = den = 0.;
   for(x=-4;x<4.01;x+=.2) {
-    trans += gsAtmTrans(obs,lambda[0] + (0.5+0.5*x)*(lambda[1]-lambda[0]),flags) * exp(-0.5*x*x);
+    trans += gsAtmTrans(obs,lambda[0] + (0.5+0.5*x)*(lambda[1]-lambda[0])) * exp(-0.5*x*x);
     den += exp(-0.5*x*x);
   }
   trans /= den;
@@ -1303,9 +1282,9 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
   ll = (lambda[0]+lambda[1])/2.;
   counts = src_cont * trans
            * pow(10., -0.4*gsGalactic_Alambda__EBV(ll)*obs->EBV)
-           * gsGeometricThroughput(spectro,obs,ll,r_eff,decent,fieldang,flags)
+           * gsGeometricThroughput(spectro,obs,ll)
            * gsFracTrace(spectro,obs,i_arm,ll,0)
-           * PHOTONS_PER_ERG_1NM * ll * t_exp * gsAeff(spectro,obs,i_arm,ll,fieldang) * 1e4;
+           * PHOTONS_PER_ERG_1NM * ll * obs->t_exp * gsAeff(spectro,obs,i_arm,ll) * 1e4;
 #ifdef HGCDTE_SUTR
   if (spectro->Dtype[i_arm]==1) counts *= 1.2;
 #endif
@@ -1321,16 +1300,14 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
   /* 1D optimal - brighter feature */
   if (snrType == 0) {
     for(i=0;i<2;i++)
-      indivSNR[i] = gsGetSNR(spectro,obs,i_arm,lambda[i],frac[i]*F,sigma_v,r_eff,decent,fieldang,
-                      myNoise,t_exp,flags,0);
+      indivSNR[i] = gsGetSNR(spectro,obs,i_arm,lambda[i],frac[i]*F,sigma_v,myNoise,0);
     SNR = indivSNR[0]>indivSNR[1]? indivSNR[0]: indivSNR[1];
   }
 
   /* uniform matched filter - brighter feature */
   if (snrType == 1) {
     for(i=0;i<2;i++)
-      indivSNR[i] = gsGetSNR(spectro,obs,i_arm,lambda[i],frac[i]*F,sigma_v,r_eff,decent,fieldang,
-                      myNoise,t_exp,flags,1);
+      indivSNR[i] = gsGetSNR(spectro,obs,i_arm,lambda[i],frac[i]*F,sigma_v,myNoise,1);
     SNR = indivSNR[0]>indivSNR[1]? indivSNR[0]: indivSNR[1];
   }
 
@@ -1339,8 +1316,8 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
     Npix = spectro->npix[i_arm];
     Signal0 = (double*)malloc((size_t)(Npix*sizeof(double)));
     Signal1 = (double*)malloc((size_t)(Npix*sizeof(double)));
-    gsGetSignal(spectro,obs,i_arm,lambda[0],frac[0]*F,sigma_v,r_eff,decent,fieldang,Signal0,t_exp,flags);
-    gsGetSignal(spectro,obs,i_arm,lambda[1],frac[1]*F,sigma_v,r_eff,decent,fieldang,Signal1,t_exp,flags);
+    gsGetSignal(spectro,obs,i_arm,lambda[0],frac[0]*F,sigma_v,Signal0);
+    gsGetSignal(spectro,obs,i_arm,lambda[1],frac[1]*F,sigma_v,Signal1);
     SNR = 0;
     for(ipix=0;ipix<Npix;ipix++) SNR += (Signal0[ipix]+Signal1[ipix])*(Signal0[ipix]+Signal1[ipix])/myNoise[ipix];
     SNR = sqrt(SNR);
@@ -1354,7 +1331,7 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
 
 /* Get atmospheric transmission for the continuum by taking instrumental effects into account.
  */
-double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, unsigned long flags) {
+double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda) {
   int j;
   double FR[5*SP_PSF_LEN];
   double den, num;
@@ -1364,7 +1341,7 @@ double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doubl
   gsSpectroDist(spectro,obs,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
   num = den = 0.0;
   for(j=0;j<5*SP_PSF_LEN;j++) {
-    trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*spectro->dl[i_arm],flags);
+    trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*spectro->dl[i_arm]);
     num += FR[j/5]*trans;
     den += FR[j/5];
   }
@@ -1393,21 +1370,19 @@ double gsPerHertzToPerPixel(SPECTRO_ATTRIB* spectro, int i_arm, double lambda) {
  * r_eff is galaxy effective radius [arcsec], set 0 for stars
  * decent is fiber astrometric offset [arcsec]
 */
-double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, 
-  double r_eff, double decent, double fieldang, double t_exp, double lambda, unsigned long flags) {
-
+double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda) {
   double conv;
   
   /* Atmospheric transmission */
-  conv = gsAtmTransInst(spectro, obs, i_arm, lambda, flags);
+  conv = gsAtmTransInst(spectro, obs, i_arm, lambda);
   /* Galactic reddening */
   conv *= gsEBVToAttn(obs, lambda);
   /* Instrument geometry */
-  conv *= gsGeometricThroughput(spectro,obs,lambda,r_eff,decent,fieldang,flags);
+  conv *= gsGeometricThroughput(spectro,obs,lambda);
   /* Line spread function */
   conv *= gsFracTrace(spectro,obs,i_arm,lambda,0);
   /* Effective area, including throughput, and time */
-  conv *= PHOTONS_PER_ERG_1NM * lambda * t_exp * gsAeff(spectro,obs,i_arm,lambda,fieldang) * 1e4;
+  conv *= PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
   /* Convert from per Hz --> l-per pixel */
   conv *= gsPerHertzToPerPixel(spectro, i_arm, lambda);
   return conv;
@@ -1419,8 +1394,7 @@ double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
 
 /* Modified by Y.Moritani for input mag. file: 20150422 :*/
 void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag,
-  double r_eff, double decent, double fieldang, double *Noise, double t_exp, unsigned long flags,
-  MAGFILE* magfile2,
+  double *Noise, MAGFILE* magfile2,
   double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve) {
 
   long ipix;
@@ -1452,7 +1426,7 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
     
     /* Determine how many counts per Hz we get from the object continuum */
     src_cont = gsMagToFlux(mag); /* in erg/cm2/s */
-    counts = src_cont * gsConversionFunction(spectro,obs,i_arm,r_eff,decent,fieldang,t_exp,lambda,flags);
+    counts = src_cont * gsConversionFunction(spectro,obs,i_arm,lambda);
 
     /* Report S/N ratio */
     out_SNR_curve[ipix] = counts/sqrt(sample_factor*counts + Noise[ipix]);
@@ -1544,8 +1518,23 @@ void gsReadObservationKeyword(char InfoLine[512], const char* keyword, const cha
 /* Read an observation configuration file
  * Format:
  */
-void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs, double* fieldang, double* t_exp) {
+void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs) {
   char InfoLine[512];
+
+  obs->seeing_fwhm_800 = 0.8;
+  obs->elevation = 4000.0;
+  obs->zenithangle = 45.0;
+  obs->lunarphase = 0.3;
+  obs->lunarangle = 120.0;
+  obs->lunarZA = 70.0;
+  obs->EBV = 0.4;
+  obs->fieldangle = 0.675;
+  obs->decent = 0;
+  obs->t_exp = 900.0;
+  obs->n_exp = 4;
+  obs->r_eff = 0.0;
+  obs->skytype = 0x00011005;
+  obs->flags = 0;
 
   do {
     if (fgets(InfoLine, 511, fp)==NULL) {
@@ -1559,10 +1548,17 @@ void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs, double* fieldang, double
       gsReadObservationKeyword(InfoLine, "LUNARANGLE", "%lg", &(obs->lunarangle));
       gsReadObservationKeyword(InfoLine, "LUNARZA", "%lg", &(obs->lunarZA));
       gsReadObservationKeyword(InfoLine, "EBV", "%lg", &(obs->EBV));
-      gsReadObservationKeyword(InfoLine, "FIELDANG", "%lg", fieldang);
-      gsReadObservationKeyword(InfoLine, "TEXP", "%lg", t_exp);
+      gsReadObservationKeyword(InfoLine, "FIELDANG", "%lg", &(obs->fieldangle));
+      gsReadObservationKeyword(InfoLine, "DECENT", "%lg", &(obs->decent));
+      gsReadObservationKeyword(InfoLine, "TEXP", "%lg", &(obs->t_exp));
+      gsReadObservationKeyword(InfoLine, "NEXP", "%d", &(obs->n_exp));
+      gsReadObservationKeyword(InfoLine, "REFF", "%lg", &(obs->r_eff));
     }
   } while (InfoLine[0]!='@');
+}
+
+void gsCopyObservationConfig(OBS_ATTRIB* obs1, OBS_ATTRIB* obs2) {
+  memcpy(obs2, obs1, sizeof(OBS_ATTRIB));
 }
 
 /* Read a spectrograph configuration file.
@@ -1889,7 +1885,7 @@ double gsInterpolateMagfile(MAGFILE* magfile, double lambda) {
   return mag;
 }
 
-void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro, double* fieldang, double* decent, double* t, int* n_exp) {
+void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro) {
   /* Made into a function by L.Dobos on 20191219 */
   /* Input observing conditions from stdin */
 
@@ -1919,12 +1915,12 @@ void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro, double* fi
     obs->EBV = 0.00;
 
   //printf("Enter field angle [degrees]: ");
-  if(scanf("%lg", fieldang)==EOF)
-    *fieldang = 0.675;
+  if(scanf("%lg", &(obs->fieldangle))==EOF)
+    obs->fieldangle = 0.675;
 
   //printf("Enter fiber astrometric offset [arcsec]: ");
-  if(scanf("%lg", decent)==EOF)
-    *decent = 0.00;
+  if(scanf("%lg", &(obs->decent))==EOF)
+    obs->decent = 0.00;
 
   /* Moon conditions -- set Moon below horizon unless otherwise indicated */
   obs->lunarZA = 135.;
@@ -1945,16 +1941,18 @@ void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro, double* fi
     
   /* Exposure time and systematics */
   //printf("Enter time per exposure [s]: ");
-  if(scanf("%lg", t)==EOF)
-    *t=450.;
+  if(scanf("%lg", &(obs->t_exp))==EOF)
+    obs->t_exp=450.;
   //printf("Enter number of exposures: ");
-  if(scanf("%d", n_exp)==EOF)
-    *n_exp=8;
+  if(scanf("%d", &(obs->n_exp))==EOF)
+    obs->n_exp=8;
   //printf("Enter systematic sky subtraction floor [rms per 1D pixel]: ");
   if(scanf("%lg", &(spectro->sysfrac))==EOF)
     spectro->sysfrac=0.01;
-  spectro->sysfrac *= sqrt((double)*n_exp); /* Prevent this from averaging down */
+  spectro->sysfrac *= sqrt((double)obs->n_exp); /* Prevent this from averaging down */
   //printf("Enter diffuse stray light [fraction of total]: ");
   if(scanf("%lg", &(spectro->diffuse_stray))==EOF)
     spectro->diffuse_stray=0.02;
+
+  obs->flags = 0x0;
 }
