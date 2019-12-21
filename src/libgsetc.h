@@ -154,6 +154,7 @@ FILE* gsOpenOutputFile(const char* filename);
 void gsCloseOutputFile(FILE* fp);
 void gsReadSpectrographConfig(FILE*, SPECTRO_ATTRIB *spectro, double degrade);
 void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs);
+void gsWriteObservationConfig(FILE *fp, OBS_ATTRIB* obs, const char* prefix);
 void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro);
 
 #endif

@@ -1516,7 +1516,6 @@ void gsReadObservationKeyword(char InfoLine[512], const char* keyword, const cha
 }
 
 /* Read an observation configuration file
- * Format:
  */
 void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs) {
   char InfoLine[512];
@@ -1555,6 +1554,33 @@ void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs) {
       gsReadObservationKeyword(InfoLine, "REFF", "%lg", &(obs->r_eff));
     }
   } while (InfoLine[0]!='@');
+}
+
+/* Write a single observation config file keyword with optional prefix
+ */
+void gsWriteObservationKeyword(FILE* fp, const char* prefix, const char* keyword, const char* format, void* var) {
+  if (prefix != NULL) 
+    fprintf(fp, "%s", prefix);
+  fprintf(fp, "%s ", keyword);
+  fprintf(fp, format, (char*)var);
+  fprintf(fp, "\n");
+}
+
+/* Write observation configuration file, with optional line prefix
+ */
+void gsWriteObservationConfig(FILE *fp, OBS_ATTRIB* obs, const char* prefix) {
+  gsWriteObservationKeyword(fp, prefix, "SEEING", "%lg", &(obs->seeing_fwhm_800));
+  gsWriteObservationKeyword(fp, prefix, "ELEV", "%lg", &(obs->elevation));
+  gsWriteObservationKeyword(fp, prefix, "ZA", "%lg", &(obs->zenithangle));
+  gsWriteObservationKeyword(fp, prefix, "LUNARPHASE", "%lg", &(obs->lunarphase));
+  gsWriteObservationKeyword(fp, prefix, "LUNARANGLE", "%lg", &(obs->lunarangle));
+  gsWriteObservationKeyword(fp, prefix, "LUNARZA", "%lg", &(obs->lunarZA));
+  gsWriteObservationKeyword(fp, prefix, "EBV", "%lg", &(obs->EBV));
+  gsWriteObservationKeyword(fp, prefix, "FIELDANG", "%lg", &(obs->fieldangle));
+  gsWriteObservationKeyword(fp, prefix, "DECENT", "%lg", &(obs->decent));
+  gsWriteObservationKeyword(fp, prefix, "TEXP", "%lg", &(obs->t_exp));
+  gsWriteObservationKeyword(fp, prefix, "NEXP", "%d", &(obs->n_exp));
+  gsWriteObservationKeyword(fp, prefix, "REFF", "%lg", &(obs->r_eff));
 }
 
 void gsCopyObservationConfig(OBS_ATTRIB* obs1, OBS_ATTRIB* obs2) {

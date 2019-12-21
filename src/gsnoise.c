@@ -53,9 +53,7 @@ int main(int argc, char* argv[]) {
     gsReadObservationConfig(fp, &obs);
     gsCloseConfigFile(fp);
     
-    // TODO: these are not read from the configs
-    //       skytype doesn't really fit into observation
-    //       diffuse_stray is OK but would need to change file format
+    // TODO: diffuse_stray should be in spectro config file but would need to change file format
     spectro.diffuse_stray = 0.02;
 
     /* Allocate noise vectors */
@@ -115,6 +113,7 @@ int main(int argc, char* argv[]) {
     
     /* Write into output file */
     fp = gsOpenOutputFile(params.noiseFile);
+    gsWriteObservationConfig(fp, &obs, "# ");
     fprintf(fp, "# arm i wave sky moon stray dark readout conv sample_factor\n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         sample_factor = gsGetSampleFactor(&spectro, i_arm);
