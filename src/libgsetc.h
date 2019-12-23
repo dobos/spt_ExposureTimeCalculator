@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327950288
@@ -117,6 +118,7 @@ typedef struct {
 double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda);
 double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 double gsFracTrace(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, int tr);
+double gsAtmContOp(OBS_ATTRIB *obs, double lambda);
 double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 
@@ -156,5 +158,12 @@ void gsReadSpectrographConfig(FILE*, SPECTRO_ATTRIB *spectro, double degrade);
 void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs);
 void gsWriteObservationConfig(FILE *fp, OBS_ATTRIB* obs, const char* prefix);
 void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro);
+
+/* Command-line argument parsing */
+char* gsGetArgPositional(int argc, char* argv[], int i);
+int gsGetArgNamedBoolean(int argc, char* argv[], const char* name);
+
+void gsError(const char* message, ...);
+void gsPrintProgress(long total, long i);
 
 #endif

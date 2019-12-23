@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "libgsetc.h"
 
@@ -161,8 +162,7 @@ double gsOP_Si_abslength(double lambda, double T) {
 
   /* Legal range: 2e-7 .. 1.1e-6 meters */
   if (lambda<2e-7 || lambda>1.1e-6) {
-    fprintf(stderr, "Error: Si data out of range\n");
-    exit(1);
+    gsError("Error: Si data out of range.");
   }
 
   hnu = 1.239842e-6/lambda; /* in eV */
@@ -216,8 +216,7 @@ double gsOP_Si_indexreal(double lambda, double T) {
 
   /* Legal range: 2e-7 .. 1.1e-6 meters */
   if (lambda<2e-7 || lambda>1.1e-6) {
-    fprintf(stderr, "Error: Si data out of range\n");
-    exit(1);
+    gsError("Error: Si data out of range.");
   }
 
   /* Get position in table to read */
@@ -276,8 +275,7 @@ double gsGalactic_Alambda__EBV(double lambda) {
   lambda /= 1e3; /* convert nm --> um */
 
   if (lambda<.1 || lambda>10) {  
-    fprintf(stderr, "Error: Wavelength lambda = %12.5lE microns out of range for dust extinction law.\n", lambda);
-    exit(1);
+    gsError("Error: Wavelength lambda = %12.5lE microns out of range for dust extinction law.", lambda);
   }
    
   /* Find place to linearly interpolate */
@@ -323,7 +321,7 @@ double gsAtmContOp(OBS_ATTRIB *obs, double lambda) {
       break;
 
     default:
-      fprintf(stderr, "Error: gsAtmContOp: illegal opacity model\n");
+      gsError("Error: gsAtmContOp: illegal opacity model.");
       break;
   }
 
@@ -356,8 +354,7 @@ double gsAtmTrans(OBS_ATTRIB *obs, double lambda) {
       }
       if (xint>39998) {
         /* Infrared */
-        fprintf(stderr, "Error: transmission model not valid in the IR\n");
-        exit(1);
+        gsError("Error: transmission model not valid in the IR.");
       }
       break;
 
@@ -375,8 +372,7 @@ double gsAtmTrans(OBS_ATTRIB *obs, double lambda) {
           trans *= MKTrans_3mm[xint] * (1-xfrac) + MKTrans_3mm[xint+1] * xfrac;
         } else {
           /* Infrared, beyond 1500nm */
-          fprintf(stderr, "Error: transmission model not valid in the IR\n");
-          exit(1);  
+          gsError("Error: transmission model not valid in the IR.");
         }
       } else {
         x = (lambda-500)/0.025;
@@ -388,8 +384,7 @@ double gsAtmTrans(OBS_ATTRIB *obs, double lambda) {
       break;
 
     default:
-      fprintf(stderr, "Error: Unrecognized atmospheric line absorption model.\n");
-      exit(1);
+      gsError("Error: Unrecognized atmospheric line absorption model.");
       break;
   }
 
@@ -760,8 +755,7 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
       break;
 
     default:
-      fprintf(stderr, "Error: illegal sky line model: %1lx\n", (obs->skytype>>16) & 0xf);
-      exit(1);
+      gsError("Error: illegal sky line model: %1lx.", (obs->skytype>>16) & 0xf);
       break;
   }
 }
@@ -789,7 +783,7 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, do
   printf("  --> Computing Lunar Continuum Contribution ...\n");
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
     lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm];   
-    printf("      --> %.0f percent done ...\r",0.02441*ipix);
+    gsPrintProgress(spectro->npix[i_arm], ipix);
 
     /* Moonlight -- if the Moon is above the horizon */
     if (obs->lunarZA<90) {
@@ -834,8 +828,7 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, do
           break;
 
         default:
-          fprintf(stderr, "Error: illegal Moonlight model: %1lx\n", (obs->skytype>>4) & 0xf);
-          exit(1);
+          gsError("Error: illegal Moonlight model: %1lx.", (obs->skytype>>4) & 0xf);
           break;
       }
 
@@ -906,7 +899,7 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
   printf("  --> Computing Sky Continuum Contribution ...\n");
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
     lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm];   
-    printf("      --> %.0f percent done ...\r",0.02441*ipix);
+    gsPrintProgress(spectro->npix[i_arm], ipix);
     
     /* Atmospheric transmission -- used to remap the continuum model */
     trans = gsAtmTransInst(spectro, obs, i_arm, lambda);
@@ -944,8 +937,7 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
         break;
 
       default:
-        fprintf(stderr, "Error: illegal sky continuum model: %1lx\n", obs->skytype & 0xf);
-        exit(1);
+        gsError("Error: illegal sky continuum model: %1lx.", obs->skytype & 0xf);
         break;
     }
 
@@ -1010,8 +1002,6 @@ void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise) {
 
 /* Routine to construct the noise in a given spectrograph arm.
  * Returns noise variance in counts^2 per l-pixel.
- * Here t_exp = exposure time (in seconds)
- *      fieldang = field angle in degrees
  */
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod) {
 
@@ -1414,7 +1404,7 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
 #endif
 
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
-    printf("      --> %.0f percent done ...\r",(i_arm*spectro->npix[i_arm]+(1+ipix))*0.008138);
+    gsPrintProgress(spectro->npix[i_arm], ipix);
     lambda = spectro->lmin[i_arm] + spectro->dl[i_arm]*ipix;
  
     /* Added by Y.Moritani for input mag. file: 20150422 */
@@ -1467,14 +1457,13 @@ void gsPrintCompilerFlags() {
  * If file name is -, open stdin
  */
 FILE* gsOpenConfigFile(const char* filename) {
-  if (!strcmp("-", filename)) {
+  if (strcmp("-", filename) == 0) {
     return stdin;
   } else {
     FILE* fp;
     fp = fopen(filename, "r");
     if (fp == NULL) {
-        fprintf(stderr, "Error: Can't read file: %s\n", filename);
-        exit(1);
+        gsError("Error: Can't read file: %s.", filename);
     }
     return fp;
   }
@@ -1485,14 +1474,13 @@ void gsCloseConfigFile(FILE* fp) {
 }
 
 FILE* gsOpenOutputFile(const char* filename) {
-  if (!strcmp("-", filename)) {
+  if (strcmp("-", filename) == 0) {
     return stdout;
   } else {
     FILE* fp;
     fp = fopen(filename, "w");
     if (fp == NULL) {
-        fprintf(stderr, "Error: Can't open file for writing: %s\n", filename);
-        exit(1);
+        gsError("Error: Can't open file for writing: %s.", filename);
     }
     return fp;
   }
@@ -1509,8 +1497,7 @@ void gsReadObservationKeyword(char InfoLine[512], const char* keyword, const cha
   if (memcmp(InfoLine, keyword, (size_t)len)==0) {
     args = sscanf(InfoLine+len+1, format, var);
     if (args!=1) {
-      fprintf(stderr, "Error: gsReadObservationConfig: Failed to read %s keyword: %d/1 arguments assigned.\n", keyword, args);
-      exit(1);
+      gsError("Error: gsReadObservationConfig: Failed to read %s keyword: %d/1 arguments assigned.", keyword, args);
     }
   }
 }
@@ -1627,30 +1614,26 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
         args = sscanf(InfoLine+7, "%lg %lg %lg %lg %lg %lg %lg %lg", &(spectro->D_outer), &(spectro->centobs), &(spectro->rfov),
           spectro->EFL, spectro->EFL+1, spectro->EFL+2, spectro->EFL+3, spectro->EFL+4);
         if (args!=8) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read OPTICS keyword: %d/4 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read OPTICS keyword: %d/4 arguments assigned.", args);
         }
       }
       if (memcmp(InfoLine, "SPOT", (size_t)4)==0) {
         ptr = spectro->rms_spot;
         args = sscanf(InfoLine+5, "%lg %lg %lg %lg %lg", ptr, ptr+1, ptr+2, ptr+3, ptr+4);
         if (args!=5) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read SPOT keyword: %d/5 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read SPOT keyword: %d/5 arguments assigned.", args);
         }
       }      
       if (memcmp(InfoLine, "FIBER", (size_t)5)==0) {
         args = sscanf(InfoLine+6, "%lg", &(spectro->fiber_ent_rad));
         if (args!=1) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read FIBER keyword: %d/1 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read FIBER keyword: %d/1 arguments assigned.", args);
         }
       }      
       if (memcmp(InfoLine, "ARMS", (size_t)4)==0) {
         args = sscanf(InfoLine+5, "%d", &(spectro->N_arms));
         if (args!=1) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read ARMS keyword: %d/1 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read ARMS keyword: %d/1 arguments assigned.", args);
         }
         for(i=0;i<spectro->N_arms;i++) {
           spectro->lmin[i] = spectro->fratio[i] = -1.;
@@ -1659,24 +1642,20 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
         }
       }
       if (memcmp(InfoLine, "MEDIUM_RESOLUTION", (size_t)17)==0) {
-	 args = sscanf(InfoLine+17, "%d", &spectro->MR);
-	 if (args!=1) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read MEDIUM_RESOLUTION keyword\n");
-          exit(1);
-	 } else if(spectro->MR != 0 && spectro->MR != 1) {
-	    fprintf(stderr, "Error: gsReadSpectrographConfig: invalid value of MEDIUM_RESOLUTION %d (use 0/1)\n", spectro->MR);
-          exit(1);
-	 }
+        args = sscanf(InfoLine+17, "%d", &spectro->MR);
+        if (args!=1) {
+            gsError("Error: gsReadSpectrographConfig: Failed to read MEDIUM_RESOLUTION keyword.");
+        } else if(spectro->MR != 0 && spectro->MR != 1) {
+            gsError("Error: gsReadSpectrographConfig: invalid value of MEDIUM_RESOLUTION %d (use 0/1).", spectro->MR);
+    	  }
       }
       if (memcmp(InfoLine, "PARAM", (size_t)5)==0) {
         args = sscanf(InfoLine+6, "%d %lg %lg %ld %ld", &i, &lmin, &lmax, &npix, &width);
         if (args!=5) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read PARAM keyword: %d/5 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read PARAM keyword: %d/5 arguments assigned.", args);
         }
         if (i<0 || i>=spectro->N_arms) {
-          fprintf(stderr, "Error: illegal PARAM line: arm #%1d does not exist.\n", i);
-          exit(1);
+          gsError("Error: illegal PARAM line: arm #%1d does not exist.", i);
         }
         spectro->lmin[i] = lmin;
         spectro->lmax[i] = lmax;
@@ -1687,12 +1666,10 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
       if (memcmp(InfoLine, "CAMERA", (size_t)6)==0) {
         args = sscanf(InfoLine+7, "%d %lg %lg %lg %lg %lg %lg %lg %lg %lg", &i, &f, &thick, &pix, &T, &rms, &diam, &dark, &read, &sep);
         if (args!=10) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read CAMERA keyword: %d/10 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read CAMERA keyword: %d/10 arguments assigned.", args);
         }
         if (i<0 || i>=spectro->N_arms) {
-          fprintf(stderr, "Error: illegal CAMERA line: arm #%1d does not exist.\n", i);
-          exit(1);
+          gsError("Error: illegal CAMERA line: arm #%1d does not exist.", i);
         }
         spectro->fratio[i] = f;
         spectro->thick[i] = thick;
@@ -1710,8 +1687,7 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
         spectro->istart[0] = 0;
         for(count=0;count<1000000;count++) {
           if (fgets(InfoLine, 511, fp)==NULL) {
-            fprintf(stderr, "Error: Unexpected EOF: @ THRPUT grid point %d\n", i);
-            exit(1);
+            gsError("Error: Unexpected EOF: @ THRPUT grid point %d.", i);
           }
           if (memcmp(InfoLine, "D", (size_t)1)==0) {
             i_arm++;
@@ -1724,42 +1700,36 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
           }
           args = sscanf(InfoLine, "%lg %lg %lg %lg %lg %lg", spectro->l+i, temp, temp+1, temp+2, temp+3, temp+4);
           if (args!=6) {
-            fprintf(stderr, "Error: gsReadSpectrographConfig: illegal throughput table line: %d/6 arguments assigned.\n", args);
-            exit(1);
+            gsError("Error: gsReadSpectrographConfig: illegal throughput table line: %d/6 arguments assigned.", args);
           }
           spectro->T[i] = temp[0]*temp[1]*temp[2]*temp[3]*temp[4]*degrade;
           i++;
         }
         if (count==1000000) {
-          fprintf(stderr, "Error: No end of throughput table found after 1000000 lines.\n");
-          exit(1);
+          gsError("Error: No end of throughput table found after 1000000 lines.");
         }
       }
       if (memcmp(InfoLine, "VIGNET", (size_t)6)==0) {
         ptr = spectro->vignette;
         args = sscanf(InfoLine+7, "%lg %lg %lg %lg %lg", ptr, ptr+1, ptr+2, ptr+3, ptr+4);
         if (args!=5) {
-          fprintf(stderr, "Error: gsReadSpectrographConfig: Failed to read VIGNET keyword: %d/5 arguments assigned.\n", args);
-          exit(1);
+          gsError("Error: gsReadSpectrographConfig: Failed to read VIGNET keyword: %d/5 arguments assigned.", args);
         }
       }
       if (memcmp(InfoLine, "HGCDTE", (size_t)6)==0) {
         sscanf(InfoLine+7, "%d", &i);
         if (i<0 || i>=spectro->N_arms) {
-          fprintf(stderr, "Error: HGCDTE %d: illegal arm index\n", i);
-          exit(1);
+          gsError("Error: HGCDTE %d: illegal arm index.", i);
         }
         spectro->Dtype[i] = 1;
       }
       if (memcmp(InfoLine, "NLINES", (size_t)6)==0) {
         sscanf(InfoLine+7, "%d %lg", &i, temp);
         if (i<0 || i>=spectro->N_arms) {
-          fprintf(stderr, "Error: NLINES %d: illegal arm index\n", i);
-          exit(1);
+          gsError("Error: NLINES %d: illegal arm index.", i);
         }
         if (*temp<10) {
-          fprintf(stderr, "Error: NLINES %d: nlines=%lg is illegal.\n", i, *temp);
-          exit(1);
+          gsError("Error: NLINES %d: nlines=%lg is illegal.", i, *temp);
         }
         spectro->nline[i] = *temp;
       }
@@ -1768,24 +1738,19 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
 
   /* Tests */
   if (spectro->D_outer<=0) {
-    fprintf(stderr, "Error: illegal outer diameter or no OPTICS line.\n");
-    exit(1);
+    gsError("Error: illegal outer diameter or no OPTICS line.");
   }
   for(i=0; i<5; i++) if (spectro->rms_spot[i]<0) {
-    fprintf(stderr, "Error: illegal rms spot or no SPOT line: spot[%1d]=%12.5lE\n", i, spectro->rms_spot[i]);
-    exit(1);
+    gsError("Error: illegal rms spot or no SPOT line: spot[%1d]=%12.5lE.", i, spectro->rms_spot[i]);
   }
   if (spectro->fiber_ent_rad<=0) {
-    fprintf(stderr, "Error: illegal fiber radius or no FIBER line.\n");
-    exit(1);
+    gsError("Error: illegal fiber radius or no FIBER line.");
   }
   if (spectro->N_arms<=0) {
-    fprintf(stderr, "Error: %d arms illegal or no ARMS line.\n", spectro->N_arms);
-    exit(1);
+    gsError("Error: %d arms illegal or no ARMS line.", spectro->N_arms);
   }
   for(i=0;i<spectro->N_arms;i++) if (spectro->lmin[i]<0) {
-    fprintf(stderr, "Error: illegal lambda min = %lg or no PARAM %1d line.\n", spectro->lmin[i], i);
-    exit(1);
+    gsError("Error: illegal lambda min = %lg or no PARAM %1d line.", spectro->lmin[i], i);
   }
 
 #ifdef NATURAL_NLINES
@@ -1821,6 +1786,7 @@ void gsReadMagfile(MAGFILE* magfile, char* filename) {
   int ia;
   char command[256], buf[256], dmy[32];
 
+  /* This is an ugly linux-only hack to count number of lines */
   sprintf(command, "wc %s", filename);
   if ((in_pipe = popen(command,"r")) == NULL){
     exit(1);
@@ -1981,4 +1947,37 @@ void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro) {
     spectro->diffuse_stray=0.02;
 
   obs->flags = 0x0;
+}
+
+/* Command-line argument parsing */
+char* gsGetArgPositional(int argc, char* argv[], int i) {
+  if (i < 1 || (argv[i][0] == '-' && argv[i][1] == '-')) {
+    gsError("Positional argument %d must be specified.");
+  }
+  return argv[i];
+}
+
+int gsGetArgNamedBoolean(int argc, char* argv[], const char* name) {
+  int i;
+  for (i = 1; i < argc; i++) {
+    if (strcmp(name, argv[i]) == 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+void gsError(const char* message, ...) {
+    va_list argptr;
+    va_start(argptr, message);
+    vfprintf(stderr, message, argptr);
+    va_end(argptr);
+    fprintf(stderr, "\n");
+    exit(1);
+}
+
+void gsPrintProgress(long total, long i) {
+#ifndef NOPROGRESS
+  printf("      --> %.0f percent done ...\r", (double)(i + 1) / total * 100);
+#endif
 }
