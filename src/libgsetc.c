@@ -518,7 +518,7 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda
  * at wavenumber u (units: cycles/pixel). We treat only the real part (i.e. ignore skewed
  * PSFs).
  */
-double gsSpectroMTF(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, double u) {
+double gsSpectroMTF(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double u) {
 
   double D_spot, sigma;
   double mtf = 1.;
@@ -570,7 +570,7 @@ double gsSpectroMTF(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
  * in each l-pixel (from 0 .. N-1); returns to fr[0..N-1]. Adds additional smearing of
  * Gaussian width sigma (in pixels).
  */
-void gsSpectroDist(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda,
+void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda,
   double pos, double sigma, int N, double *fr) {
 
   int ip;
@@ -581,7 +581,7 @@ void gsSpectroDist(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double l
   Nu = 1000; du = 0.005;
   for(iu=0;iu<Nu;iu++) {
     u = du*(iu+0.5);
-    mtf1d = gsSpectroMTF(spectro,obs,i_arm,lambda,u) * exp(-2.*M_PI*M_PI*sigma*sigma*u*u);
+    mtf1d = gsSpectroMTF(spectro,i_arm,lambda,u) * exp(-2.*M_PI*M_PI*sigma*sigma*u*u);
     for(ip=0;ip<N;ip++)
       fr[ip] += 2.*du*cos(2.*M_PI*u*(pos-ip))*mtf1d;
   }
@@ -593,7 +593,7 @@ void gsSpectroDist(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double l
  * Treats only the radiation from the correct trace (tr=0) or from adjacent traces as well
  * (tr=1).
  */
-double gsFracTrace(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, int tr) {
+double gsFracTrace(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, int tr) {
 
   double *FR, sum;
   int i, j, N;
@@ -602,7 +602,7 @@ double gsFracTrace(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double l
   FR = (double*)malloc((size_t)(N*sizeof(double)));
   sum=0;
   for(j=-tr;j<=tr;j++) {
-    gsSpectroDist(spectro,obs,i_arm,lambda,0.5*(N-1)+j*spectro->sep[i_arm]/spectro->pix[i_arm],0,N,FR);
+    gsSpectroDist(spectro,i_arm,lambda,0.5*(N-1)+j*spectro->sep[i_arm]/spectro->pix[i_arm],0,N,FR);
     for(i=0;i<N;i++) sum += FR[i];
   }
   free((char*)FR);
@@ -675,7 +675,7 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
         * appropriate conversion to counts in detector.
         */
       count = gsSKY_UVES_INT[iline] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
-              * gsFracTrace(spectro,obs,i_arm,lambda,1)
+              * gsFracTrace(spectro,i_arm,lambda,1)
               * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad;
       if (count<0) count=0;
 
@@ -687,7 +687,7 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
       iref = (long)floor(pos-7.5);
       if (iref<0) iref=0;
       if (iref>spectro->npix[i_arm]-16) iref=spectro->npix[i_arm]-16;
-      gsSpectroDist(spectro,obs,i_arm,lambda,pos-iref,0,16,FR);
+      gsSpectroDist(spectro,i_arm,lambda,pos-iref,0,16,FR);
       for(j=0;j<16;j++)
         Noise[iref+j] += count*FR[j]*sample_factor;
     }
@@ -716,7 +716,7 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
         * appropriate conversion to counts in detector.
         */
       count = OHDATA[2*iline+1] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
-              * gsFracTrace(spectro,obs,i_arm,lambda,1)
+              * gsFracTrace(spectro,i_arm,lambda,1)
               * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad;
       if (count<0) count=0;
   
@@ -733,7 +733,7 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
       iref = (long)floor(pos-SP_PSF_LEN/2+0.5);
       if (iref<0) iref=0;
       if (iref>spectro->npix[i_arm]-SP_PSF_LEN) iref=spectro->npix[i_arm]-SP_PSF_LEN;
-      gsSpectroDist(spectro,obs,i_arm,lambda,pos-iref,0,SP_PSF_LEN,FR);
+      gsSpectroDist(spectro,i_arm,lambda,pos-iref,0,SP_PSF_LEN,FR);
       for(j=0;j<SP_PSF_LEN;j++)
         Noise[iref+j] += count*FR[j]*sample_factor;
     }
@@ -763,7 +763,7 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
 double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double lambda, double continuum, double rad) {  
   double count;
   count = continuum * spectro->dl[i_arm] * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad *
-            gsFracTrace(spectro,obs,i_arm,lambda,1);
+            gsFracTrace(spectro,i_arm,lambda,1);
   return count;
 }
 
@@ -991,13 +991,13 @@ void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double*
      Noise[ipix] += var;
 }
 
-void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise) {
+void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise) {
   long ipix;
   double var;
 
   var = (spectro->read[i_arm]*spectro->read[i_arm]) * spectro->width[i_arm];
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
-     Noise[ipix] += var;
+     Noise[ipix] += var * obs->n_exp;
 }
 
 /* Routine to construct the noise in a given spectrograph arm.
@@ -1039,7 +1039,7 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noi
 
   /* Dark current & read noise contributions */
   gsAddDarkNoise(spectro, obs, i_arm, Noise);
-  gsAddReadoutNoise(spectro, i_arm, Noise);
+  gsAddReadoutNoise(spectro, obs, i_arm, Noise);
 
   free((char*)sky);
 
@@ -1088,11 +1088,11 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
   counts = F * trans
            * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
            * gsGeometricThroughput(spectro,obs,lambda)
-           * gsFracTrace(spectro,obs,i_arm,lambda,0)
+           * gsFracTrace(spectro,i_arm,lambda,0)
            * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
 
   /* Get distribution of light over pixels */
-  gsSpectroDist(spectro,obs,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR);
+  gsSpectroDist(spectro,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR);
   for(ipix=0;ipix<NP_WIN;ipix++) Signal[ipix+iref] = FR[ipix]*counts;
   return;
 }
@@ -1185,7 +1185,7 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   counts = src_cont * trans
              * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
              * gsGeometricThroughput(spectro,obs,lambda)
-             * gsFracTrace(spectro,obs,i_arm,lambda,0)
+             * gsFracTrace(spectro,i_arm,lambda,0)
              * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
   #ifdef HGCDTE_SUTR
     if (spectro->Dtype[i_arm]==1) counts *= 1.2;
@@ -1273,7 +1273,7 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
   counts = src_cont * trans
            * pow(10., -0.4*gsGalactic_Alambda__EBV(ll)*obs->EBV)
            * gsGeometricThroughput(spectro,obs,ll)
-           * gsFracTrace(spectro,obs,i_arm,ll,0)
+           * gsFracTrace(spectro,i_arm,ll,0)
            * PHOTONS_PER_ERG_1NM * ll * obs->t_exp * gsAeff(spectro,obs,i_arm,ll) * 1e4;
 #ifdef HGCDTE_SUTR
   if (spectro->Dtype[i_arm]==1) counts *= 1.2;
@@ -1328,7 +1328,7 @@ double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doubl
   double trans;
 
   /* Atmospheric transmission */
-  gsSpectroDist(spectro,obs,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
+  gsSpectroDist(spectro,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
   num = den = 0.0;
   for(j=0;j<5*SP_PSF_LEN;j++) {
     trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*spectro->dl[i_arm]);
@@ -1370,7 +1370,7 @@ double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
   /* Instrument geometry */
   conv *= gsGeometricThroughput(spectro,obs,lambda);
   /* Line spread function */
-  conv *= gsFracTrace(spectro,obs,i_arm,lambda,0);
+  conv *= gsFracTrace(spectro,i_arm,lambda,0);
   /* Effective area, including throughput, and time */
   conv *= PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
   /* Convert from per Hz --> l-per pixel */
@@ -1545,29 +1545,34 @@ void gsReadObservationConfig(FILE *fp, OBS_ATTRIB *obs) {
 
 /* Write a single observation config file keyword with optional prefix
  */
-void gsWriteObservationKeyword(FILE* fp, const char* prefix, const char* keyword, const char* format, void* var) {
+void gsWriteObservationKeyword(FILE* fp, const char* prefix, const char* keyword, const char* format, ...) {
   if (prefix != NULL) 
     fprintf(fp, "%s", prefix);
   fprintf(fp, "%s ", keyword);
-  fprintf(fp, format, (char*)var);
+
+  va_list argptr;
+  va_start(argptr, format);
+  vfprintf(fp, format, argptr);
+  va_end(argptr);
+
   fprintf(fp, "\n");
 }
 
 /* Write observation configuration file, with optional line prefix
  */
 void gsWriteObservationConfig(FILE *fp, OBS_ATTRIB* obs, const char* prefix) {
-  gsWriteObservationKeyword(fp, prefix, "SEEING", "%lg", &(obs->seeing_fwhm_800));
-  gsWriteObservationKeyword(fp, prefix, "ELEV", "%lg", &(obs->elevation));
-  gsWriteObservationKeyword(fp, prefix, "ZA", "%lg", &(obs->zenithangle));
-  gsWriteObservationKeyword(fp, prefix, "LUNARPHASE", "%lg", &(obs->lunarphase));
-  gsWriteObservationKeyword(fp, prefix, "LUNARANGLE", "%lg", &(obs->lunarangle));
-  gsWriteObservationKeyword(fp, prefix, "LUNARZA", "%lg", &(obs->lunarZA));
-  gsWriteObservationKeyword(fp, prefix, "EBV", "%lg", &(obs->EBV));
-  gsWriteObservationKeyword(fp, prefix, "FIELDANG", "%lg", &(obs->fieldangle));
-  gsWriteObservationKeyword(fp, prefix, "DECENT", "%lg", &(obs->decent));
-  gsWriteObservationKeyword(fp, prefix, "TEXP", "%lg", &(obs->t_exp));
-  gsWriteObservationKeyword(fp, prefix, "NEXP", "%d", &(obs->n_exp));
-  gsWriteObservationKeyword(fp, prefix, "REFF", "%lg", &(obs->r_eff));
+  gsWriteObservationKeyword(fp, prefix, "SEEING", "%lg", obs->seeing_fwhm_800);
+  gsWriteObservationKeyword(fp, prefix, "ELEV", "%lg", obs->elevation);
+  gsWriteObservationKeyword(fp, prefix, "ZA", "%lg", obs->zenithangle);
+  gsWriteObservationKeyword(fp, prefix, "LUNARPHASE", "%lg", obs->lunarphase);
+  gsWriteObservationKeyword(fp, prefix, "LUNARANGLE", "%lg", obs->lunarangle);
+  gsWriteObservationKeyword(fp, prefix, "LUNARZA", "%lg", obs->lunarZA);
+  gsWriteObservationKeyword(fp, prefix, "EBV", "%lg", obs->EBV);
+  gsWriteObservationKeyword(fp, prefix, "FIELDANG", "%lg", obs->fieldangle);
+  gsWriteObservationKeyword(fp, prefix, "DECENT", "%lg", obs->decent);
+  gsWriteObservationKeyword(fp, prefix, "TEXP", "%lg", obs->t_exp);
+  gsWriteObservationKeyword(fp, prefix, "NEXP", "%d", obs->n_exp);
+  gsWriteObservationKeyword(fp, prefix, "REFF", "%lg", obs->r_eff);
 }
 
 void gsCopyObservationConfig(OBS_ATTRIB* obs1, OBS_ATTRIB* obs2) {

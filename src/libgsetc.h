@@ -117,7 +117,6 @@ typedef struct {
 
 double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda);
 double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
-double gsFracTrace(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda, int tr);
 double gsAtmContOp(OBS_ATTRIB *obs, double lambda);
 double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
@@ -142,7 +141,7 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, do
 void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
 void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise, double* sky);
 void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise);
-void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, int i_arm, double* Noise);
+void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise);
 
 void gsAllocArmVectors(SPECTRO_ATTRIB* spectro, double*** spec);
 void gsFreeArmVectors(SPECTRO_ATTRIB* spectro, double** spec);

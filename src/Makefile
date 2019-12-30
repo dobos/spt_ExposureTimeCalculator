@@ -4,7 +4,7 @@ else
 	OPT = -O3
 endif
 
-CFLAGS = -DHGCDTE_SUTR -DMOONLIGHT_
+CFLAGS = -DHGCDTE_SUTR -DMOONLIGHT_ -DNOPROGRESS
 LDFLAGS = -lm
 BIN = ../python/pfsspecsim/bin
 TARGETS = gsnoise.x gsetc.x

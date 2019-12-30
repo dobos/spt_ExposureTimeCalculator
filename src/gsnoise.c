@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
         for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
             printf(" //Arm%d//\n", i_arm);
             gsAddDarkNoise(&spectro, &obs, i_arm, dark[i_arm]);
-            gsAddReadoutNoise(&spectro, i_arm, readout[i_arm]);
+            gsAddReadoutNoise(&spectro, &obs, i_arm, readout[i_arm]);
         }
     }
 
