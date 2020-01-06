@@ -77,15 +77,6 @@ typedef struct {
 
 } SPECTRO_ATTRIB;
 
-static int spectro_arm(const SPECTRO_ATTRIB *spectro, int ia)
-{
-   if (!spectro->MR) {
-      return ia;
-   } else {
-      return (ia == 1) ? 3 : ia;
-   }
-}
-
 /* Observing condition attributes structure */
 typedef struct {
   double seeing_fwhm_800; /* Seeing FWHM @ 800 nm */
@@ -116,7 +107,8 @@ typedef struct {
 /* Exported functions */
 
 double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda);
-double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
+double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm);
+double gsThroughput(SPECTRO_ATTRIB *spectro, int i_arm, double lambda);
 double gsAtmContOp(OBS_ATTRIB *obs, double lambda);
 double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
@@ -146,6 +138,8 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
 void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise, double* sky);
 void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise);
 void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double* Noise);
+
+int spectro_arm(const SPECTRO_ATTRIB *spectro, int ia);
 
 void gsAllocArmVectors(SPECTRO_ATTRIB* spectro, double*** spec);
 void gsFreeArmVectors(SPECTRO_ATTRIB* spectro, double** spec);

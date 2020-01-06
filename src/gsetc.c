@@ -236,7 +236,8 @@ int main(void) {
       Aeff = 0.;
       for(ia=0;ia<spectro.N_arms;ia++)
         if (spectro.lmin[ia]<372.845*(1+z) && 372.845*(1+z)<spectro.lmax[ia])
-          Aeff += gsAeff(&spectro,&obs,ia,372.845*(1+z));
+          Aeff += gsAeff(&spectro,&obs,ia)
+                  * gsThroughput(&spectro,ia,372.845*(1+z));
 
       fprintf(fp, "%6.4lf %7.2lf %7.2lf %8.6lf %8.5lf",
         z, 372.71*(1+z), 372.98*(1+z), gsGeometricThroughput(&spectro, &obs, 372.845*(1+z)), Aeff
@@ -272,7 +273,8 @@ int main(void) {
       Aeff = 0.;
       for(ia=0;ia<spectro.N_arms;ia++)
         if (spectro.lmin[ia]<345.5*(1+z) && 345.5*(1+z)<spectro.lmax[ia])
-          Aeff += gsAeff(&spectro,&obs,ia,345.5*(1+z));
+          Aeff += gsAeff(&spectro,&obs,ia)
+                  * gsThroughput(&spectro,ia,345.5*(1+z));
 
 /*      fprintf(fp, "%6.4lf %7.2lf %8.6lf %8.5lf", z, 345.5*(1+z), gsGeometricThroughput(&spectro, &obs, 345.5*(1+z), ref_input, decent, 0, 0x0), Aeff); */
       fprintf(fp, "%7.2lf %8.6lf %8.5lf", 345.5*(1+z), gsGeometricThroughput(&spectro, &obs, 345.5*(1+z)), Aeff);

@@ -473,9 +473,9 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
  * throughput factors from the telescope through detector (but
  * not the atmosphere).
  */
-double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda) {
-  double Aeff, Thr, fr, Vig;
-  int ti, i, imin, imax;
+double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm) {
+  double Aeff, Vig;
+  int i;
 
   /* Geometric area */
   Aeff = M_PI/4. * spectro->D_outer * spectro->D_outer * (1-spectro->centobs*spectro->centobs);
@@ -495,6 +495,16 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda
   }
   Aeff *= Vig;
 
+  return Aeff;
+}
+
+/* Interpolate the troughtput (excluding atmosphere & fiber geom)
+ */
+double gsThroughput(SPECTRO_ATTRIB *spectro, int i_arm, double lambda) {
+  double Thr, fr;
+  int imin, imax;
+  int ti;
+
   /* Throughput */
   imin = spectro->istart[i_arm];
   imax = spectro->istart[i_arm+1];
@@ -510,8 +520,7 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda
       Thr = spectro->T[ti] + (spectro->T[ti+1]-spectro->T[ti])*fr;
     }
   }
-  Aeff *= Thr;
-  return(Aeff);
+  return Thr;
 }
 
 /* Computes the 1D Fourier transform (in the dispersion direction) of the spectrograph PSF
@@ -676,7 +685,9 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
         */
       count = gsSKY_UVES_INT[iline] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
               * gsFracTrace(spectro,i_arm,lambda,1)
-              * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad;
+              * gsAeff(spectro,obs,i_arm) 
+              * gsThroughput(spectro,i_arm,lambda)
+              * obs->t_exp * M_PI * rad * rad;
       if (count<0) count=0;
 
       /* Rescale line counts by the airmass; UVES referenced to 1.1. Also by atmospheric
@@ -717,7 +728,9 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
         */
       count = OHDATA[2*iline+1] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
               * gsFracTrace(spectro,i_arm,lambda,1)
-              * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad;
+              * gsAeff(spectro,obs,i_arm)
+              * gsThroughput(spectro,i_arm,lambda)
+              * obs->t_exp * M_PI * rad * rad;
       if (count<0) count=0;
   
       /* Rescale line counts by the airmass; referenced to 1.0. Also by atmospheric
@@ -762,8 +775,11 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
 
 double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double lambda, double continuum, double rad) {  
   double count;
-  count = continuum * spectro->dl[i_arm] * gsAeff(spectro,obs,i_arm,lambda) * obs->t_exp * M_PI * rad * rad *
-            gsFracTrace(spectro,i_arm,lambda,1);
+  count = continuum * spectro->dl[i_arm] 
+          * gsAeff(spectro,obs,i_arm)
+          * gsThroughput(spectro,i_arm,lambda)
+          * obs->t_exp * M_PI * rad * rad
+          * gsFracTrace(spectro,i_arm,lambda,1);
   return count;
 }
 
@@ -1089,7 +1105,9 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
            * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
            * gsGeometricThroughput(spectro,obs,lambda)
            * gsFracTrace(spectro,i_arm,lambda,0)
-           * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
+           * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp 
+           * gsAeff(spectro,obs,i_arm)
+           * gsThroughput(spectro,i_arm,lambda) * 1e4;
 
   /* Get distribution of light over pixels */
   gsSpectroDist(spectro,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR);
@@ -1186,7 +1204,9 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
              * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
              * gsGeometricThroughput(spectro,obs,lambda)
              * gsFracTrace(spectro,i_arm,lambda,0)
-             * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
+             * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp 
+             * gsAeff(spectro,obs,i_arm) 
+             * gsThroughput(spectro,i_arm,lambda) * 1e4;
   #ifdef HGCDTE_SUTR
     if (spectro->Dtype[i_arm]==1) counts *= 1.2;
   #endif
@@ -1274,7 +1294,9 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
            * pow(10., -0.4*gsGalactic_Alambda__EBV(ll)*obs->EBV)
            * gsGeometricThroughput(spectro,obs,ll)
            * gsFracTrace(spectro,i_arm,ll,0)
-           * PHOTONS_PER_ERG_1NM * ll * obs->t_exp * gsAeff(spectro,obs,i_arm,ll) * 1e4;
+           * PHOTONS_PER_ERG_1NM * ll * obs->t_exp 
+           * gsAeff(spectro,obs,i_arm)
+           * gsThroughput(spectro,i_arm,ll) * 1e4;
 #ifdef HGCDTE_SUTR
   if (spectro->Dtype[i_arm]==1) counts *= 1.2;
 #endif
@@ -1372,7 +1394,9 @@ double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm,
   /* Line spread function */
   conv *= gsFracTrace(spectro,i_arm,lambda,0);
   /* Effective area, including throughput, and time */
-  conv *= PHOTONS_PER_ERG_1NM * lambda * obs->t_exp * gsAeff(spectro,obs,i_arm,lambda) * 1e4;
+  conv *= PHOTONS_PER_ERG_1NM * lambda * obs->t_exp 
+          * gsAeff(spectro,obs,i_arm)
+          * gsThroughput(spectro,i_arm,lambda) * 1e4;
   /* Convert from per Hz --> l-per pixel */
   conv *= gsPerHertzToPerPixel(spectro, i_arm, lambda);
   return conv;
@@ -1431,6 +1455,15 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
 }
 
 /* --- I/O FUNCTIONS --- */
+
+int spectro_arm(const SPECTRO_ATTRIB *spectro, int ia)
+{
+   if (!spectro->MR) {
+      return ia;
+   } else {
+      return (ia == 1) ? 3 : ia;
+   }
+}
 
 void gsPrintCompilerFlags() {
   /* Tell us what flags are on */

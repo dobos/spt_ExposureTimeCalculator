@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
      * It depends on the wavelength and the distance (in pixels) from the center */
     int i_arm, i;
     long ip;
-    double lambda, pos;
+    double lambda;
     double tr;
     double* fr;
 
@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
             //pos = (lambda - spectro.lmin[i_arm]) / spectro.dl[i_arm];
             gsSpectroDist(&spectro, i_arm, lambda, 7.5, 0, params.N, fr);
             tr = gsFracTrace(&spectro, i_arm, lambda, 0);
-            fprintf(fp, "%d %d %f ", spectro_arm(&spectro, i_arm), ip, lambda);
+            fprintf(fp, "%d %ld %f ", spectro_arm(&spectro, i_arm), ip, lambda);
             for (i = 0; i < params.N; i ++) {
                 fprintf(fp, "%f ", fr[i]);
             }
