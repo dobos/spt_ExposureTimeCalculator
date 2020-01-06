@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
             //pos = (lambda - spectro.lmin[i_arm]) / spectro.dl[i_arm];
             gsSpectroDist(&spectro, i_arm, lambda, 7.5, 0, params.N, fr);
             tr = gsFracTrace(&spectro, i_arm, lambda, 0);
-            fprintf(fp, "%d %d %f ", i_arm, ip, lambda);
+            fprintf(fp, "%d %d %f ", spectro_arm(&spectro, i_arm), ip, lambda);
             for (i = 0; i < params.N; i ++) {
                 fprintf(fp, "%f ", fr[i]);
             }
