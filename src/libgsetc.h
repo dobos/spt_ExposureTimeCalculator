@@ -125,6 +125,10 @@ double gsMagToFlux(double mag);
 double gsEBVToAttn(OBS_ATTRIB* obs, double lambda);
 double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm);
 
+double gsSpectroMTF(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double u);
+void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos, double sigma, int N, double *fr);
+double gsFracTrace(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, int tr);
+
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod);
 
 double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double z,

@@ -1956,8 +1956,8 @@ void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro) {
 
 /* Command-line argument parsing */
 char* gsGetArgPositional(int argc, char* argv[], int i) {
-  if (i < 1 || (argv[i][0] == '-' && argv[i][1] == '-')) {
-    gsError("Positional argument %d must be specified.");
+  if (i < 1 || argc <= i || (argv[i][0] == '-' && argv[i][1] == '-')) {
+    gsError("Positional argument %d must be specified.", i);
   }
   return argv[i];
 }

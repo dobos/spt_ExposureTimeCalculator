@@ -5,7 +5,7 @@
 
 #include "libgsetc.h"
 
-/* Compute sky model and systematic error */
+/* Compute sky model, transmission function and systematics */
 /* Written by L.Dobos base on the original ETC */
 
 typedef struct {
@@ -38,7 +38,7 @@ PARAMS getParams(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     int i_arm;
     long i;
-    double lambda, sample_factor;
+    double lambda, dl, sample_factor;
     FILE* fp;
 
     SPECTRO_ATTRIB spectro;
@@ -148,13 +148,14 @@ int main(int argc, char* argv[]) {
     /* Write into output file */
     fp = gsOpenOutputFile(params.noiseFile);
     gsWriteObservationConfig(fp, &obs, "# ");
-    fprintf(fp, "# arm i wave sky moon stray dark readout conv sample_factor atm_contop atm_trans \n");
+    fprintf(fp, "# arm i lambda dlambda sky moon stray dark readout conv sample_factor atm_contop atm_trans \n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         sample_factor = gsGetSampleFactor(&spectro, i_arm);
         for (i = 0; i < spectro.npix[i_arm]; i++) {
             lambda = spectro.lmin[i_arm] + spectro.dl[i_arm] * (i + 0.5);
-	        fprintf(fp, "%1d %4ld %7.4lf %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le\n", 
-                spectro_arm(&spectro, i_arm), i, lambda, 
+            dl = spectro.dl[i_arm];
+	        fprintf(fp, "%1d %4ld %7.4lf %7.4lf %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le\n", 
+                spectro_arm(&spectro, i_arm), i, lambda, dl,
                 sky[i_arm][i], moon[i_arm][i], stray[i_arm][i], dark[i_arm][i], readout[i_arm][i], 
                 conv[i_arm][i], sample_factor, atm_contop[i_arm][i], atm_trans[i_arm][i]);
       }
@@ -172,4 +173,6 @@ int main(int argc, char* argv[]) {
     gsAllocArmVectors(&spectro, &conv);
     gsAllocArmVectors(&spectro, &atm_contop);
     gsAllocArmVectors(&spectro, &atm_trans);
+
+    return 0;
 }
