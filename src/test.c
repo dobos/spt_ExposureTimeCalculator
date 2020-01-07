@@ -107,7 +107,25 @@ void test_AddSkyLines(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
     gsAllocArmVectors(spectro, &counts);
     for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
         gsAddSkyLines(spectro, obs, i_arm, counts[i_arm]);
-        for (ip = 0; ip < spectro->npix[i_arm]; ip++) {
+        for (ip = 0; ip < spectro->npix[i_arm] * spectro->oversampling; ip++) {
+            lambda = spectro->lmin[i_arm] + (ip + 0.5) * spectro->dl[i_arm] / spectro->oversampling;
+            fprintf(fp, "%d %d %f %f\n", spectro_arm(spectro, i_arm), ip, lambda, counts[i_arm][ip]);
+        }
+    }
+    gsFreeArmVectors(spectro, counts);
+}
+
+void test_AddSkyContinuum(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
+    int ip;
+    int i_arm ;
+    double lambda;
+    double** counts;
+
+    gsAllocArmVectors(spectro, &counts);
+    for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
+        gsAddSkyContinuum(spectro, obs, i_arm, counts[i_arm]);
+        gsAddLunarContinuum(spectro, obs, i_arm, counts[i_arm]);
+        for (ip = 0; ip < spectro->npix[i_arm] * spectro->oversampling; ip++) {
             lambda = spectro->lmin[i_arm] + (ip + 0.5) * spectro->dl[i_arm] / spectro->oversampling;
             fprintf(fp, "%d %d %f %f\n", spectro_arm(spectro, i_arm), ip, lambda, counts[i_arm][ip]);
         }
@@ -146,7 +164,13 @@ int main(int argc, char* argv[]) {
     gsCloseOutputFile(fp);
     */
 
+    /*
     fp = gsOpenOutputFile("test_AddSkyLines.dat");
     test_AddSkyLines(fp, &spectro, &obs);
+    gsCloseOutputFile(fp);
+    */
+
+    fp = gsOpenOutputFile("test_AddSkyContinuum.dat");
+    test_AddSkyContinuum(fp, &spectro, &obs);
     gsCloseOutputFile(fp);
 }

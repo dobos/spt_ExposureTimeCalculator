@@ -796,34 +796,32 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
   free(FR);
 }
 
-double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double lambda, double continuum, double rad) {  
-  double count;
+double gsGetCountinuumCounts(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double lambda, double continuum) {  
+  double count, rad;
+
+  rad = gsGetFiberRadius(spectro, obs, i_arm);
   count = continuum 
-          * spectro->dl[i_arm]
+          * spectro->dl[i_arm] / spectro->oversampling
           * gsAeff(spectro,obs,i_arm)
           * gsThroughput(spectro,i_arm,lambda)
           * obs->t_exp * M_PI * rad * rad
-          * gsFracTrace(spectro,i_arm,lambda,1);
+          * gsFracTrace(spectro,i_arm,lambda,1)
+          * gsGetSampleFactor(spectro, i_arm);
   return count;
 }
 
 void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
   long ipix;
   double lambda;
-  double rad, sample_factor;
   double lunar_cont, lunarphase;
-  double count;
   double scale_RS, scale_MS;
   double kV;
   double Istar, f1, f2, alpha, Bmoon;
 
-  rad = gsGetFiberRadius(spectro, obs, i_arm);
-  sample_factor = gsGetSampleFactor(spectro, i_arm);
-
   printf("  --> Computing Lunar Continuum Contribution ...\n");
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
-    lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm];   
-    gsPrintProgress(spectro->npix[i_arm], ipix);
+  for(ipix=0;ipix<spectro->npix[i_arm]*spectro->oversampling;ipix++) {
+    lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm]/spectro->oversampling;   
+    gsPrintProgress(spectro->npix[i_arm]*spectro->oversampling, ipix);
 
     /* Moonlight -- if the Moon is above the horizon */
     if (obs->lunarZA<90) {
@@ -871,11 +869,8 @@ void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, do
           gsError("Error: illegal Moonlight model: %1lx.", (obs->skytype>>4) & 0xf);
           break;
       }
-
     }
-
-    count = gsGetCount(spectro, obs, i_arm, lambda, lunar_cont, rad);
-    Noise[ipix] += count*sample_factor;
+    Noise[ipix] += gsGetCountinuumCounts(spectro, obs, i_arm, lambda, lunar_cont);
   }
 }
 
@@ -927,19 +922,17 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
   
   long ipix;
   double lambda;
-  double airmass, rad, sample_factor;
+  double airmass;
   double trans;
-  double continuum, count;
+  double continuum;
   
   airmass = gsGetAirmass(obs);
-  rad = gsGetFiberRadius(spectro, obs, i_arm);
-  sample_factor = gsGetSampleFactor(spectro, i_arm);
 
   /* Sky continuum contributions. */
   printf("  --> Computing Sky Continuum Contribution ...\n");
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
-    lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm];   
-    gsPrintProgress(spectro->npix[i_arm], ipix);
+  for(ipix=0;ipix<spectro->npix[i_arm]*spectro->oversampling;ipix++) {
+    lambda = spectro->lmin[i_arm] + (ipix+0.5)*spectro->dl[i_arm]/spectro->oversampling;   
+    gsPrintProgress(spectro->npix[i_arm]*spectro->oversampling, ipix);
     
     /* Atmospheric transmission -- used to remap the continuum model */
     trans = gsAtmTransInst(spectro, obs, i_arm, lambda);
@@ -982,8 +975,7 @@ void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
     }
 
     continuum *= airmass * trans;
-    count = gsGetCount(spectro, obs, i_arm, lambda, continuum, rad);
-    Noise[ipix] += count*sample_factor;
+    Noise[ipix] += gsGetCountinuumCounts(spectro, obs, i_arm, lambda, continuum);
   }
 }
 
