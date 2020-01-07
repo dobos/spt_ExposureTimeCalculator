@@ -26,6 +26,7 @@ void updateSpectroConfig(SPECTRO_ATTRIB* spectro, PARAMS* params) {
         spectro->lmax[ia] = spectro->lmin[ia] * 128 * spectro->dl[ia];
     }
 
+    spectro->diffuse_stray=0.2;                     // Bump this up a bit to see if works
     spectro->oversampling = params->oversampling;
 }
 
@@ -133,6 +134,32 @@ void test_AddSkyContinuum(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
     gsFreeArmVectors(spectro, counts);
 }
 
+void test_AddStrayLight(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
+    int ip;
+    int i_arm ;
+    double lambda, sample_factor;
+    double **counts, **sky;
+
+    gsAllocArmVectors(spectro, &counts);
+    gsAllocArmVectors(spectro, &sky);
+    for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
+        sample_factor = gsGetSampleFactor(spectro, i_arm);
+        gsAddSkyContinuum(spectro, obs, i_arm, counts[i_arm]);
+        gsAddLunarContinuum(spectro, obs, i_arm, counts[i_arm]);
+        for (ip = 0; ip < spectro->npix[i_arm] * spectro->oversampling; ip++) {
+            sky[i_arm][ip] = counts[i_arm][ip] / sample_factor;
+            counts[i_arm][ip] = 0;
+        }
+        gsAddStrayLight(spectro, obs, i_arm, counts[i_arm], sky[i_arm]);
+        for (ip = 0; ip < spectro->npix[i_arm] * spectro->oversampling; ip++) {
+            lambda = spectro->lmin[i_arm] + (ip + 0.5) * spectro->dl[i_arm] / spectro->oversampling;
+            fprintf(fp, "%d %d %f %f\n", spectro_arm(spectro, i_arm), ip, lambda, counts[i_arm][ip]);
+        }
+    }
+    gsFreeArmVectors(spectro, counts);
+    gsFreeArmVectors(spectro, sky);
+}
+
 int main(int argc, char* argv[]) {
     FILE* fp;
 
@@ -170,7 +197,13 @@ int main(int argc, char* argv[]) {
     gsCloseOutputFile(fp);
     */
 
+    /*
     fp = gsOpenOutputFile("test_AddSkyContinuum.dat");
     test_AddSkyContinuum(fp, &spectro, &obs);
+    gsCloseOutputFile(fp);
+    */
+
+    fp = gsOpenOutputFile("test_AddStrayLight.dat");
+    test_AddStrayLight(fp, &spectro, &obs);
     gsCloseOutputFile(fp);
 }

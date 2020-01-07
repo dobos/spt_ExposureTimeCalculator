@@ -1008,10 +1008,10 @@ void gsAddStrayLight(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double
 
   /* Add the diffuse stray light background */
   sky_sysref = 0.;
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
+  for(ipix=0;ipix<spectro->npix[i_arm]*spectro->oversampling;ipix++)
     sky_sysref += sky[ipix];
-  sky_sysref *= spectro->width[i_arm]*spectro->pix[i_arm]/spectro->sep[i_arm]/(double)spectro->npix[i_arm];
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
+  sky_sysref *= spectro->width[i_arm]*spectro->pix[i_arm]/spectro->sep[i_arm]/(double)spectro->npix[i_arm]/spectro->oversampling;
+  for(ipix=0;ipix<spectro->npix[i_arm]*spectro->oversampling;ipix++)
      Noise[ipix] += spectro->diffuse_stray*sky_sysref*sample_factor;
 }
 
