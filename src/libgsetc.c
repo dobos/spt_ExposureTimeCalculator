@@ -1022,8 +1022,8 @@ void gsAddDarkNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double*
   
   sample_factor = gsGetSampleFactor(spectro, i_arm);
 
-  var = (spectro->dark[i_arm]*obs->t_exp*sample_factor) * spectro->width[i_arm];
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
+  var = (spectro->dark[i_arm]*obs->t_exp*sample_factor) * spectro->width[i_arm] / spectro->oversampling;
+  for(ipix=0;ipix<spectro->npix[i_arm]*spectro->oversampling;ipix++)
      Noise[ipix] += var;
 }
 
@@ -1031,8 +1031,8 @@ void gsAddReadoutNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
   long ipix;
   double var;
 
-  var = (spectro->read[i_arm]*spectro->read[i_arm]) * spectro->width[i_arm];
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++)
+  var = (spectro->read[i_arm]*spectro->read[i_arm]) * spectro->width[i_arm] / spectro->oversampling;
+  for(ipix=0;ipix<spectro->npix[i_arm]*spectro->oversampling;ipix++)
      Noise[ipix] += var * obs->n_exp;
 }
 
@@ -1394,7 +1394,7 @@ double gsEBVToAttn(OBS_ATTRIB* obs, double lambda) {
 }
 
 double gsPerHertzToPerPixel(SPECTRO_ATTRIB* spectro, int i_arm, double lambda) {
-  return 2.99792458e17*spectro->dl[i_arm]/(lambda*lambda);
+  return 2.99792458e17*spectro->dl[i_arm]/spectro->oversampling/(lambda*lambda);
 }
 
 /* Compute overall transmission function including reddening, atmosphere and instrument
