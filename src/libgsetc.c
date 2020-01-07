@@ -983,6 +983,10 @@ void gsAddSkySubtrError(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
   long ipix, j;
   double sky_sysref;
 
+  if (spectro->oversampling != 1) {
+    gsError("Sky subtraction error cannot be computed when oversampling != 1.");
+  }
+
   printf("  --> Computing Sky Systematic Error Contribution ...\n");
   /* Add the systematic sky subtraction error */
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
