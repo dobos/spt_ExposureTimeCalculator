@@ -32,9 +32,6 @@
 /* Maximum legal number of arms */
 #define MAXARM 3
 
-/* Maximum number of l-pixels per spectrograph arm */
-#define MAXPIX 8192
-
 /* Maximum length of throughput table */
 #define MAXNTHR 1024
 

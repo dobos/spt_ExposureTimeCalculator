@@ -29,12 +29,12 @@ int main(void) {
   int snrType;
   long ngal[NZ_OII], ngtot;
   double snrmax16, mdlf;
-  double snrcont[MAXPIX];
-  double snrcontcount[MAXPIX];
-  double snrcontnoise[MAXPIX];
-  double magcont[MAXPIX];
-  double snctrans[MAXPIX];
-  double samplefac[MAXPIX];
+  double *snrcont;
+  double *snrcontcount;
+  double *snrcontnoise;
+  double *magcont;
+  double *snctrans;
+  double *samplefac;
   int arm;
   long pix;
   double wav, innoise, inskymod;
@@ -297,6 +297,14 @@ int main(void) {
     printf("(%d/%d) Computing SNR curve for continuum ...\n",proc,proc_tot);
     fp = fopen(OutFileSNRAB, "w");
     for(ia=0;ia<spectro.N_arms;ia++) {
+      /* Allocate data vectors for the current arm */
+      snrcont = (double*)malloc((size_t)(spectro.npix[ia]));
+      snrcontcount = (double*)malloc((size_t)(spectro.npix[ia]));
+      snrcontnoise = (double*)malloc((size_t)(spectro.npix[ia]));
+      magcont = (double*)malloc((size_t)(spectro.npix[ia]));
+      snctrans = (double*)malloc((size_t)(spectro.npix[ia]));
+      samplefac = (double*)malloc((size_t)(spectro.npix[ia]));
+
       /* Modified by Y. Moritani for input mag. file: 20150422 :*/
       /* Modified by K. Yabe for counts output: 20150525 :*/
       //gsGetSNR_Continuum(&spectro,&obs,ia,22.5,0.0,decent,fieldang,spNoise[ia],t,0x0,snrcont);
@@ -306,6 +314,13 @@ int main(void) {
         fprintf(fp, "%1d %4ld %9.3lf %8.4lf %11.5lE %11.5lE %11.5lE %11.5lE %11.5lE %11.5lE  %11.5lE\n",
 		            spectro_arm(&spectro, ia), j, spectro.lmin[ia]+spectro.dl[ia]*j,snrcont[j]*sqrt((double)obs.n_exp),snrcontcount[j],spNoise[ia][j],snrcontnoise[j],magcont[j],snctrans[j],samplefac[j],spSky[ia][j]);
       }
+
+      free(snrcont);
+      free(snrcontcount);
+      free(snrcontnoise);
+      free(magcont);
+      free(snctrans);
+      free(samplefac);
     }
     printf("\n");
     printf(" --> Done.\n");

@@ -1041,7 +1041,7 @@ void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noi
 
   /* Compute the sky, and add systematic error contribution */
   /* Allocation of sky vector */
-  sky = (double*)malloc((size_t)(MAXPIX*sizeof(double)));
+  sky = (double*)malloc((size_t)(spectro->npix[i_arm]*sizeof(double)));
   for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
     sky[ipix]=Noise[ipix]/sample_factor;
     SkyMod[ipix]=Noise[ipix]/sample_factor;

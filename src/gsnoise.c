@@ -111,15 +111,15 @@ int main(int argc, char* argv[]) {
     /* Sum up sky and moon to compute stray light */
     if (params.addStrayLight) {
         printf("Computing stray light ...\n");
-        temp = (double*)malloc((size_t)(MAXPIX*sizeof(double)));
         for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
+            temp = (double*)malloc((size_t)(spectro.npix[i_arm]*sizeof(double)));
             sample_factor = gsGetSampleFactor(&spectro, i_arm);
             for(i = 0; i < spectro.npix[i_arm]; i++) {
                 temp[i] = (sky[i_arm][i] + moon[i_arm][i]) / sample_factor;
             }
             gsAddStrayLight(&spectro, &obs, i_arm, stray[i_arm], temp);
+            free(temp);
         }
-        free(temp);
     }
 
     /* Dark and read-out noise */
