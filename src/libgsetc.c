@@ -414,7 +414,7 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
   du = 0.024;
 
   /* Smearing in arcsec, and the EFL */
-  i = floor(4*obs->fieldangle/spectro->rfov);
+  i = floor((MAXEFL-1)*obs->fieldangle/spectro->rfov);
   if (i<0) {
     sigma = spectro->rms_spot[0];
     EFL = spectro->EFL[0];
@@ -425,10 +425,10 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
     } else {
       sigma = spectro->rms_spot[i]
               + (spectro->rms_spot[i+1]-spectro->rms_spot[i])
-              * (4*obs->fieldangle/spectro->rfov-i);
+              * ((MAXEFL-1)*obs->fieldangle/spectro->rfov-i);
       EFL = spectro->EFL[i]
               + (spectro->EFL[i+1]-spectro->EFL[i])
-              * (4*obs->fieldangle/spectro->rfov-i);
+              * ((MAXEFL-1)*obs->fieldangle/spectro->rfov-i);
     }
   }
   sigma *= ARCSEC_PER_URAD / EFL; 
@@ -453,8 +453,9 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
      * for telescopes where seeing dominates and the only importance of the diffraction
      * is to scatter a small fraction of light into the far wings.
      */
+#ifndef DIFFRACTION_OFF
     theta_D = 0.001*lambda/spectro->D_outer/(1.-spectro->centobs) * ARCSEC_PER_URAD;
-#ifdef DIFFRACTION_OFF
+#else
     theta_D = 0.;
 #endif
     Gtilde = exp(-k*k*sigma*sigma/2.-pow(u/uscale,1.666666666666666666666666667))
@@ -481,7 +482,7 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm) {
   Aeff = M_PI/4. * spectro->D_outer * spectro->D_outer * (1-spectro->centobs*spectro->centobs);
 
   /* Vignetting */
-  i = floor(4*obs->fieldangle/spectro->rfov);  
+  i = floor((MAXEFL-1)*obs->fieldangle/spectro->rfov);  
   if (i<0) {
     Vig = spectro->vignette[0];
   } else {
@@ -490,7 +491,7 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm) {
     } else {
       Vig = spectro->vignette[i]
               + (spectro->vignette[i+1]-spectro->vignette[i])
-              * (4*obs->fieldangle/spectro->rfov-i);
+              * ((MAXEFL-1)*obs->fieldangle/spectro->rfov-i);
     }
   }
   Aeff *= Vig;
@@ -633,7 +634,7 @@ double gsGetFiberRadius(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm) {
   double EFL, rad;
 
   /* Fiber radius in arcsec */
-  i = floor(4*obs->fieldangle/spectro->rfov);
+  i = floor((MAXEFL-1)*obs->fieldangle/spectro->rfov);
   if (i<0) {
     EFL = spectro->EFL[0]; 
   } else {
@@ -642,7 +643,7 @@ double gsGetFiberRadius(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm) {
     } else {
       EFL = spectro->EFL[i]
               + (spectro->EFL[i+1]-spectro->EFL[i])
-              * (4*obs->fieldangle/spectro->rfov-i);
+              * ((MAXEFL-1)*obs->fieldangle/spectro->rfov-i);
     }
   }
   rad = spectro->fiber_ent_rad/EFL * ARCSEC_PER_URAD;
