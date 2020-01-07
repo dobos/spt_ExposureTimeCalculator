@@ -485,8 +485,8 @@ double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm) {
   if (i<0) {
     Vig = spectro->vignette[0];
   } else {
-    if (i>=4) { 
-      Vig = spectro->vignette[4];
+    if (i>=MAXEFL-1) { 
+      Vig = spectro->vignette[MAXEFL-1];
     } else {
       Vig = spectro->vignette[i]
               + (spectro->vignette[i+1]-spectro->vignette[i])
@@ -1637,10 +1637,10 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
 
   /* Set parameters to defaults or illegal values */
   spectro->D_outer = -1;
-  for(i=0;i<5;i++) spectro->rms_spot[i] = -1;
+  for(i=0;i<MAXEFL;i++) spectro->rms_spot[i] = -1;
   spectro->fiber_ent_rad = -1;
   spectro->N_arms = 0;
-  for(i=0;i<5;i++) spectro->vignette[i] = 1.;
+  for(i=0;i<MAXEFL;i++) spectro->vignette[i] = 1.;
   for(i=0;i<MAXARM;i++) spectro->Dtype[i] = 0;
 
   do {
@@ -1778,7 +1778,7 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
   if (spectro->D_outer<=0) {
     gsError("Error: illegal outer diameter or no OPTICS line.");
   }
-  for(i=0; i<5; i++) if (spectro->rms_spot[i]<0) {
+  for(i=0; i<MAXEFL; i++) if (spectro->rms_spot[i]<0) {
     gsError("Error: illegal rms spot or no SPOT line: spot[%1d]=%12.5lE.", i, spectro->rms_spot[i]);
   }
   if (spectro->fiber_ent_rad<=0) {
