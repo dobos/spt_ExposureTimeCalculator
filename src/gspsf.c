@@ -53,13 +53,13 @@ int main(int argc, char* argv[]) {
         for (ip = 0; ip < spectro.npix[i_arm]; ip++) {
             lambda = spectro.lmin[i_arm] + (ip + 0.5) * spectro.dl[i_arm];   
             //pos = (lambda - spectro.lmin[i_arm]) / spectro.dl[i_arm];
-            gsSpectroDist(&spectro, i_arm, lambda, spectro.pix[i_arm] / 2.0, 0, params.N, fr);
-            //tr = gsFracTrace(&spectro, i_arm, lambda, 0);
+            gsSpectroDist(&spectro, i_arm, lambda, 0, 0, params.N, fr);
+            tr = gsFracTrace(&spectro, i_arm, lambda, 0);
             fprintf(fp, "%d %ld %f ", spectro_arm(&spectro, i_arm), ip, lambda);
             for (i = 0; i < params.N; i ++) {
                 fprintf(fp, "%f ", fr[i]);
             }
-            //fprintf(fp, "%f", tr);
+            fprintf(fp, "%f", tr);
             fprintf(fp, "\n");
         }
     }

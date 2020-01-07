@@ -553,7 +553,9 @@ double gsSpectroMTF(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double u)
     numer = denom = 0.;
     mfp = gsOP_Si_abslength(lambda, spectro->temperature[i_arm]);
     nSi = gsOP_Si_indexreal(lambda, spectro->temperature[i_arm]);
-    d0 = mfp<1e4*ddepth? mfp * ( 1 - (1+ddepth/mfp)*exp(-ddepth/mfp) )/( 1 - exp(-ddepth/mfp) ): 0.5*ddepth;
+    d0 = mfp < 1e4 * ddepth ?
+      mfp * (1 - (1 + ddepth / mfp) * exp(-ddepth / mfp)) / (1 - exp(-ddepth / mfp)) :
+      0.5 * ddepth;
     for(i=0;i<2*N;i++) {
       depth = d0 + ddepth*i;
       contrib = exp(-ddepth*i/mfp) * (depth>spectro->thick[i_arm]?0.3:1.0);
@@ -594,6 +596,31 @@ void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda,
     mtf1d = gsSpectroMTF(spectro,i_arm,lambda,u) * exp(-2.*M_PI*M_PI*sigma*sigma*u*u);
     for(ip=0;ip<N;ip++)
       fr[ip] += 2.*du*cos(2.*M_PI*u*(pos-ip))*mtf1d;
+  }
+
+  return;
+}
+
+/* For a feature centered at position pos (in pixels), computes the fraction of radiation
+ * in each sub-pixel (from 0 .. N-1); returns to fr[0..N-1]. Adds additional smearing of
+ * Gaussian width sigma (in pixels).
+ * Added by L.Dobos 20200107
+ */
+void gsSpectroDist_Oversampled(SPECTRO_ATTRIB *spectro, int i_arm, double lambda,
+  double pos, double sigma, int N, double *fr) {
+
+  int ip;
+  long iu, Nu;
+  double u, du, mtf1d;
+
+  for(ip=0;ip<N;ip++) fr[ip] = 0.;
+  Nu = 1000; du = 0.005;
+  for(iu=0;iu<Nu;iu++) {
+    u = du*(iu+0.5);
+    mtf1d = gsSpectroMTF(spectro,i_arm,lambda,u) * exp(-2.*M_PI*M_PI*sigma*sigma*u*u);
+    mtf1d /= spectro->oversampling;
+    for(ip=0;ip<N;ip++)
+      fr[ip] += 2.*du*cos(2.*M_PI*u*(pos-(double)ip/spectro->oversampling))*mtf1d;
   }
 
   return;
@@ -662,100 +689,93 @@ double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm) {
   return sample_factor;
 }
 
-void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
-  long iline, iref, j;
-  double airmass, rad, sample_factor;
-  double lambda, pos;
-  double count;
-  double FR[5*SP_PSF_LEN];
+void gsAddConvolvedSkyLine(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
+  double lambda, double count, double *Noise, double *FR) {  
   
-  airmass = gsGetAirmass(obs);
-  rad = gsGetFiberRadius(spectro, obs, i_arm);
-  sample_factor = gsGetSampleFactor(spectro, i_arm);
+  long iref, j;
+  double pos;
 
-  for(iline=0;iline<gsSKY_UVES_NLINES;iline++) {
-    lambda = gs_air2vac(gsSKY_UVES_LAMBDA[iline]);
-    pos = (lambda-spectro->lmin[i_arm])/spectro->dl[i_arm];
-    if (pos>-(SP_PSF_LEN/2) && pos<spectro->npix[i_arm]+SP_PSF_LEN/2-1) {
-      /* This line is within the range of this spectrograph arm.
-        * Need to get how the counts are distributed and then add this line.
-        */
+  pos = (lambda-spectro->lmin[i_arm])/spectro->dl[i_arm];
+  if (pos>-(SP_PSF_LEN/2) && pos<spectro->npix[i_arm]+SP_PSF_LEN/2-1) {
+    /* This line is within the range of this spectrograph arm.
+     * Need to get how the counts are distributed and then add this line.
+     */
 
-      /* Inputs are in units of 1e-12 erg/m^2/s/arcsec^2 --> need to do
-        * appropriate conversion to counts in detector.
-        */
-      count = gsSKY_UVES_INT[iline] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
-              * gsFracTrace(spectro,i_arm,lambda,1)
-              * gsAeff(spectro,obs,i_arm) 
-              * gsThroughput(spectro,i_arm,lambda)
-              * obs->t_exp * M_PI * rad * rad;
-      if (count<0) count=0;
-
-      /* Rescale line counts by the airmass; UVES referenced to 1.1. Also by atmospheric
-        * extinction curve.
-        */
-      count *= airmass/1.1  * exp(-gsAtmContOp(obs,lambda)*airmass/1.086);
-
-      iref = (long)floor(pos-7.5);
-      if (iref<0) iref=0;
-      if (iref>spectro->npix[i_arm]-16) iref=spectro->npix[i_arm]-16;
-      gsSpectroDist(spectro,i_arm,lambda,pos-iref,0,16,FR);
-      for(j=0;j<16;j++)
-        Noise[iref+j] += count*FR[j]*sample_factor;
-    }
+    /* Inputs are in units of 1e-12 erg/m^2/s/arcsec^2 --> need to do
+     * appropriate conversion to counts in detector.
+     */
+    count *= lambda * 1e-12 * PHOTONS_PER_ERG_1NM
+             * gsFracTrace(spectro,i_arm,lambda,1)
+             * gsThroughput(spectro,i_arm,lambda);
+    if (count<0) count=0;
+    
+    iref = (long)floor(pos-SP_PSF_LEN/2+0.5);
+    if (iref<0) iref=0;
+    if (iref>spectro->npix[i_arm]-SP_PSF_LEN) iref=spectro->npix[i_arm]-SP_PSF_LEN;
+    gsSpectroDist_Oversampled(spectro,i_arm,lambda,pos-iref,0,SP_PSF_LEN*spectro->oversampling,FR);
+    for(j=0;j<SP_PSF_LEN*spectro->oversampling;j++)
+      Noise[iref*spectro->oversampling+j] += count*FR[j];
   }
 }
 
-void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
-  long iline, iref, j;
-  double airmass, rad, sample_factor;
-  double lambda, pos;
+void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double factor, double airmass,
+  double* Noise, double* FR) {
+  
+  long iline;
+  double lambda;
   double count;
-  double FR[5*SP_PSF_LEN];
+  
+  for(iline=0;iline<gsSKY_UVES_NLINES;iline++) {
+    lambda = gs_air2vac(gsSKY_UVES_LAMBDA[iline]);
+    count = gsSKY_UVES_INT[iline] * factor;
 
-  airmass = gsGetAirmass(obs);
-  rad = gsGetFiberRadius(spectro, obs, i_arm);
-  sample_factor = gsGetSampleFactor(spectro, i_arm);
+    /* Rescale line counts by the airmass; UVES referenced to 1.1. Also by atmospheric
+     * extinction curve.
+     */ 
+    count *= airmass / 1.1 * exp(-gsAtmContOp(obs, lambda) * airmass / 1.086);
+      
+    gsAddConvolvedSkyLine(spectro, obs, i_arm, lambda, count, Noise, FR);
+  }
+}
+
+void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double factor, double airmass,
+  double* Noise, double* FR) {
+
+  long iline;
+  double lambda;
+  double count;
 
   /* Now the NIR lines */
   for(iline=0;iline<N_IR_OH_LINE;iline++) {
-
     lambda = OHDATA[2*iline];
-  
-    pos = (lambda-spectro->lmin[i_arm])/spectro->dl[i_arm];    
-    if (pos>-(SP_PSF_LEN/2) && pos<spectro->npix[i_arm]+SP_PSF_LEN/2-1) { 
-      /* Inputs are in units of 1e-12 erg/m^2/s/arcsec^2 --> need to do
-        * appropriate conversion to counts in detector.
-        */
-      count = OHDATA[2*iline+1] * lambda * 1e-12 * PHOTONS_PER_ERG_1NM
-              * gsFracTrace(spectro,i_arm,lambda,1)
-              * gsAeff(spectro,obs,i_arm)
-              * gsThroughput(spectro,i_arm,lambda)
-              * obs->t_exp * M_PI * rad * rad;
-      if (count<0) count=0;
-  
-      /* Rescale line counts by the airmass; referenced to 1.0. Also by atmospheric
-        * extinction curve, and the sky brightness from 14.8 mag/as2 Vega --> desired
-        * level (currently 15.8 mag/as2 Vega, see UKIRT User Guide).
-        */
-      count *= airmass * exp(-gsAtmContOp(obs,lambda)*airmass/1.086)
-                * exp((14.8-15.8)/1.086);
+    count = OHDATA[2*iline+1] * factor;
 
-      /* This line is within the range of this spectrograph arm.
-        * Need to get how the counts are distributed and then add this line.
-        */
-      iref = (long)floor(pos-SP_PSF_LEN/2+0.5);
-      if (iref<0) iref=0;
-      if (iref>spectro->npix[i_arm]-SP_PSF_LEN) iref=spectro->npix[i_arm]-SP_PSF_LEN;
-      gsSpectroDist(spectro,i_arm,lambda,pos-iref,0,SP_PSF_LEN,FR);
-      for(j=0;j<SP_PSF_LEN;j++)
-        Noise[iref+j] += count*FR[j]*sample_factor;
-    }
+    /* Rescale line counts by the airmass; referenced to 1.0. Also by atmospheric
+     * extinction curve, and the sky brightness from 14.8 mag/as2 Vega --> desired
+     * level (currently 15.8 mag/as2 Vega, see UKIRT User Guide).
+     */
+    count *= airmass * exp(-gsAtmContOp(obs, lambda) * airmass / 1.086)
+             * exp((14.8-15.8)/1.086);
+
+    gsAddConvolvedSkyLine(spectro, obs, i_arm, lambda, count, Noise, FR);
   }
 }
 
 void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise) {
+  double airmass, rad, factor;
+  double *FR;
+  
+  FR = malloc(SP_PSF_LEN*spectro->oversampling*sizeof(double));
+
+  airmass = gsGetAirmass(obs);
+  rad = gsGetFiberRadius(spectro, obs, i_arm);
+
+  factor = obs->t_exp * M_PI * rad * rad
+           * gsAeff(spectro,obs,i_arm)
+           * gsGetSampleFactor(spectro, i_arm);
+
   printf("  --> Computing Sky Lines Contribution ...\n");
+
   /* Sky line contributions -- uses VLT/UVES sky model. */
   switch((obs->skytype>>16) & 0xf) {
 
@@ -764,19 +784,22 @@ void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* 
       break;
 
     case 0x1:
-      gsAddSkyLines_UVES(spectro, obs, i_arm, Noise);
-      gsAddSkyLines_NIR(spectro, obs, i_arm, Noise);
+      gsAddSkyLines_UVES(spectro, obs, i_arm, factor, airmass, Noise, FR);
+      gsAddSkyLines_NIR(spectro, obs, i_arm, factor, airmass, Noise, FR);
       break;
 
     default:
       gsError("Error: illegal sky line model: %1lx.", (obs->skytype>>16) & 0xf);
       break;
   }
+
+  free(FR);
 }
 
 double gsGetCount(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double lambda, double continuum, double rad) {  
   double count;
-  count = continuum * spectro->dl[i_arm] 
+  count = continuum 
+          * spectro->dl[i_arm]
           * gsAeff(spectro,obs,i_arm)
           * gsThroughput(spectro,i_arm,lambda)
           * obs->t_exp * M_PI * rad * rad
@@ -1457,8 +1480,7 @@ void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, dou
 
 /* --- I/O FUNCTIONS --- */
 
-int spectro_arm(const SPECTRO_ATTRIB *spectro, int ia)
-{
+int spectro_arm(const SPECTRO_ATTRIB *spectro, int ia) {
    if (!spectro->MR) {
       return ia;
    } else {
@@ -1641,6 +1663,7 @@ void gsReadSpectrographConfig(FILE *fp, SPECTRO_ATTRIB *spectro, double degrade)
   for(i=0;i<MAXEFL;i++) spectro->rms_spot[i] = -1;
   spectro->fiber_ent_rad = -1;
   spectro->N_arms = 0;
+  spectro->oversampling = 1;
   for(i=0;i<MAXEFL;i++) spectro->vignette[i] = 1.;
   for(i=0;i<MAXARM;i++) spectro->Dtype[i] = 0;
 
@@ -1810,7 +1833,7 @@ void gsAllocArmVectors(SPECTRO_ATTRIB* spectro, double*** spec) {
 
   *spec = (double**)malloc((size_t)(spectro->N_arms*sizeof(double*)));
   for(ia=0; ia<spectro->N_arms; ia++) 
-    (*spec)[ia] = (double*)calloc((size_t)spectro->npix[ia], sizeof(double));
+    (*spec)[ia] = (double*)calloc((size_t)(spectro->npix[ia]*spectro->oversampling), sizeof(double));
 }
 
 void gsFreeArmVectors(SPECTRO_ATTRIB* spectro, double** spec) {

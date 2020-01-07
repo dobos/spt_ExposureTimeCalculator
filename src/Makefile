@@ -7,7 +7,7 @@ endif
 CFLAGS = -DHGCDTE_SUTR -DMOONLIGHT_ -DNOPROGRESS
 LDFLAGS = -lm
 BIN = ../python/pfsspecsim/bin
-TARGETS = gsnoise.x gspsf.x gsetc.x
+TARGETS = gsnoise.x gspsf.x gsetctest.x gsetc.x
 
 all : $(TARGETS)
 
@@ -19,6 +19,10 @@ gspsf.x : libgsetc.o gspsf.o
 	$(CC) $(BIN)/gspsf.o $(BIN)/libgsetc.o $(LDFLAGS) $(CFLAGS) $(OPT) -o $(BIN)/gspsf.x
 gspsf.o :
 	$(CC) gspsf.c $(LDFLAGS) $(CFLAGS) $(OPT) -c -o $(BIN)/gspsf.o	
+gsetctest.x : libgsetc.o gsetctest.o
+	$(CC) $(BIN)/gsetctest.o $(BIN)/libgsetc.o $(LDFLAGS) $(CFLAGS) $(OPT) -o $(BIN)/gsetctest.x
+gsetctest.o :
+	$(CC) test.c $(LDFLAGS) $(CFLAGS) $(OPT) -c -o $(BIN)/gsetctest.o	
 gsetc.x : libgsetc.o gsetc.o
 	$(CC) $(BIN)/gsetc.o $(BIN)/libgsetc.o $(LDFLAGS) $(CFLAGS) $(OPT) -o $(BIN)/gsetc.x
 gsetc.o :

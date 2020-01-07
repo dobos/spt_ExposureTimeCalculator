@@ -49,6 +49,8 @@ typedef struct {
   double vignette[MAXEFL];    /* Vignetting factor: 5 values from center to edge */
   int N_arms;                 /* Number of arms */
   int MR;                     /* True iff we are configured to use the medium resolution grating */
+  int oversampling;           /* Greater than one if we work at sub-pixel resolution in the dispersion
+                                 direction, should be even */
 
   double lmin[MAXARM];        /* Min wavelength in nm */
   double lmax[MAXARM];        /* Max wavelength in nm */
@@ -120,6 +122,7 @@ double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm);
 
 double gsSpectroMTF(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double u);
 void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos, double sigma, int N, double *fr);
+void gsSpectroDist_Oversampled(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos, double sigma, int N, double *fr);
 double gsFracTrace(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, int tr);
 
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod);

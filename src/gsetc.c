@@ -73,10 +73,8 @@ int main(void) {
   gsCloseConfigFile(fp);
 
   /* Allocate noise vectors */
-  spNoise=(double**)malloc((size_t)(spectro.N_arms*sizeof(double*)));
-  for(ia=0; ia<spectro.N_arms; ia++) spNoise[ia] = (double*)malloc((size_t)(spectro.npix[ia]*sizeof(double)));
-  spSky=(double**)malloc((size_t)(spectro.N_arms*sizeof(double*)));
-  for(ia=0; ia<spectro.N_arms; ia++) spSky[ia] = (double*)malloc((size_t)(spectro.npix[ia]*sizeof(double)));
+  gsAllocArmVectors(&spectro, &spNoise);
+  gsAllocArmVectors(&spectro, &spSky);
 
   gsReadObsConfig_Legacy(&obs, &spectro);
 
@@ -392,10 +390,8 @@ int main(void) {
   }
 
   /* De-allocate noise vectors */
-  for(ia=0; ia<spectro.N_arms; ia++) free((char*)(spNoise[ia]));
-  free((char*)spNoise);
-  for(ia=0; ia<spectro.N_arms; ia++) free((char*)(spSky[ia]));
-  free((char*)spSky);
+  gsFreeArmVectors(&spectro, spNoise);
+  gsFreeArmVectors(&spectro, spSky);
 
   /* Deallocate magfiles */
   gsCopyMagfile(&inmag, &inmag2);
