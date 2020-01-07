@@ -419,9 +419,9 @@ double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double la
     sigma = spectro->rms_spot[0];
     EFL = spectro->EFL[0];
   } else {
-    if (i>=4) {
-      sigma = spectro->rms_spot[4];
-      EFL = spectro->EFL[4];
+    if (i>=MAXEFL-1) {
+      sigma = spectro->rms_spot[MAXEFL-1];
+      EFL = spectro->EFL[MAXEFL-1];
     } else {
       sigma = spectro->rms_spot[i]
               + (spectro->rms_spot[i+1]-spectro->rms_spot[i])
@@ -637,8 +637,8 @@ double gsGetFiberRadius(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm) {
   if (i<0) {
     EFL = spectro->EFL[0]; 
   } else {
-    if (i>=4) {
-      EFL = spectro->EFL[4];
+    if (i>=MAXEFL-1) {
+      EFL = spectro->EFL[MAXEFL-1];
     } else {
       EFL = spectro->EFL[i]
               + (spectro->EFL[i+1]-spectro->EFL[i])

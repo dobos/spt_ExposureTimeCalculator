@@ -26,6 +26,9 @@
 /* Ratio of half-light to scale radius for exponential profile galaxy */
 #define RAT_HL_SL_EXP 1.67834
 
+/* Maximum number of effective focal lengths, rms_spot, etc */
+#define MAXEFL 5
+
 /* Maximum legal number of arms */
 #define MAXARM 3
 
@@ -40,12 +43,13 @@
 
 /* Spectrograph attributes structure */
 typedef struct {
-  double D_outer, EFL[5];     /* Outer diameter & effective focal length (meters) */
+  double D_outer;             /* Outer diameter */
+  double EFL[MAXEFL];         /* Effective focal length (meters) */
   double fiber_ent_rad;       /* Fiber entrance radius (microns) */
   double centobs;             /* Central obscuration */
   double rfov;                /* Field of view radius (degrees) */
-  double rms_spot[5];         /* RMS spot size per axis: 5 values from center to edge (microns) */
-  double vignette[5];         /* Vignetting factor: 5 values from center to edge */
+  double rms_spot[MAXEFL];    /* RMS spot size per axis: 5 values from center to edge (microns) */
+  double vignette[MAXEFL];    /* Vignetting factor: 5 values from center to edge */
   int N_arms;                 /* Number of arms */
   int MR;                     /* True iff we are configured to use the medium resolution grating */
 
