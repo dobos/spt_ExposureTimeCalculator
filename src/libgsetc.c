@@ -579,48 +579,25 @@ double gsSpectroMTF(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double u)
 }
 
 /* For a feature centered at position pos (in pixels), computes the fraction of radiation
- * in each l-pixel (from 0 .. N-1); returns to fr[0..N-1]. Adds additional smearing of
+ * in each sub-pixel (from -N .. 0 .. N); returns to fr[0..2*N]. Adds additional smearing of
  * Gaussian width sigma (in pixels).
+ * Oversampling added by L.Dobos 20200107
  */
-void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda,
-  double pos, double sigma, int N, double *fr) {
+void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos,
+  double sigma, int N, double *fr, int oversampling) {
 
   int ip;
   long iu, Nu;
   double u, du, mtf1d;
 
-  for(ip=0;ip<N;ip++) fr[ip] = 0.;
+  for(ip=0;ip<N*oversampling;ip++) fr[ip] = 0.;
   Nu = 1000; du = 0.005;
   for(iu=0;iu<Nu;iu++) {
     u = du*(iu+0.5);
     mtf1d = gsSpectroMTF(spectro,i_arm,lambda,u) * exp(-2.*M_PI*M_PI*sigma*sigma*u*u);
-    for(ip=0;ip<N;ip++)
-      fr[ip] += 2.*du*cos(2.*M_PI*u*(pos-ip))*mtf1d;
-  }
-
-  return;
-}
-
-/* For a feature centered at position pos (in pixels), computes the fraction of radiation
- * in each sub-pixel (from 0 .. N-1); returns to fr[0..N-1]. Adds additional smearing of
- * Gaussian width sigma (in pixels).
- * Added by L.Dobos 20200107
- */
-void gsSpectroDist_Oversampled(SPECTRO_ATTRIB *spectro, int i_arm, double lambda,
-  double pos, double sigma, int N, double *fr) {
-
-  int ip;
-  long iu, Nu;
-  double u, du, mtf1d;
-
-  for(ip=0;ip<N;ip++) fr[ip] = 0.;
-  Nu = 1000; du = 0.005;
-  for(iu=0;iu<Nu;iu++) {
-    u = du*(iu+0.5);
-    mtf1d = gsSpectroMTF(spectro,i_arm,lambda,u) * exp(-2.*M_PI*M_PI*sigma*sigma*u*u);
-    mtf1d /= spectro->oversampling;
-    for(ip=0;ip<N;ip++)
-      fr[ip] += 2.*du*cos(2.*M_PI*u*(pos-(double)ip/spectro->oversampling))*mtf1d;
+    mtf1d /= oversampling;
+    for(ip=0;ip<N*oversampling;ip++)
+      fr[ip] += 2.*du*cos(2.*M_PI*u*(ip/(double)oversampling-pos+0.5))*mtf1d;
   }
 
   return;
@@ -639,7 +616,7 @@ double gsFracTrace(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, int tr) {
   FR = (double*)malloc((size_t)(N*sizeof(double)));
   sum=0;
   for(j=-tr;j<=tr;j++) {
-    gsSpectroDist(spectro,i_arm,lambda,0.5*(N-1)+j*spectro->sep[i_arm]/spectro->pix[i_arm],0,N,FR);
+    gsSpectroDist(spectro,i_arm,lambda,N/2.0+j*spectro->sep[i_arm]/spectro->pix[i_arm],0,N,FR,1);
     for(i=0;i<N;i++) sum += FR[i];
   }
   free((char*)FR);
@@ -689,18 +666,43 @@ double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm) {
   return sample_factor;
 }
 
-void gsAddConvolvedSkyLine(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
+/* Returns the lower limit wavelength of the pixel
+ */
+double gsGetLambda(SPECTRO_ATTRIB* spectro, int i_arm, long i_pix) {
+  double lambda;
+  lambda = spectro->lmin[i_arm] + i_pix * spectro->dl[i_arm];
+  return lambda;
+}
+
+/* Returns the central wavelength of the pixel
+ */
+double gsGetLambdaCenter(SPECTRO_ATTRIB* spectro, int i_arm, long i_pix) {
+  double lambda;
+  lambda = spectro->lmin[i_arm] + (i_pix + 0.5) * spectro->dl[i_arm];
+  return lambda;
+}
+
+/* Returns the fractional pixel value at lambda wavelength
+ */
+double gsGetPixel(SPECTRO_ATTRIB* spectro, int i_arm, double lambda) {
+  double pos;
+  pos = (lambda - spectro->lmin[i_arm]) / spectro->dl[i_arm];
+  return pos;
+}
+
+/* Adds the sky line (convolved with the local PFS) to the noise vector
+ */
+void gsAddSkyLine(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
   double lambda, double count, double *Noise, double *FR) {  
   
-  long iref, j;
+  long ipix, iref;
   double pos;
 
-  pos = (lambda-spectro->lmin[i_arm])/spectro->dl[i_arm];
-  if (pos>-(SP_PSF_LEN/2) && pos<spectro->npix[i_arm]+SP_PSF_LEN/2-1) {
-    /* This line is within the range of this spectrograph arm.
-     * Need to get how the counts are distributed and then add this line.
-     */
-
+  pos = gsGetPixel(spectro, i_arm, lambda);
+  /* This line is within the range of this spectrograph arm.
+   * Need to get how the counts are distributed and then add this line.
+   */
+  if (pos>-SP_PSF_LEN && pos<spectro->npix[i_arm]+SP_PSF_LEN-1) {
     /* Inputs are in units of 1e-12 erg/m^2/s/arcsec^2 --> need to do
      * appropriate conversion to counts in detector.
      */
@@ -709,12 +711,15 @@ void gsAddConvolvedSkyLine(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
              * gsThroughput(spectro,i_arm,lambda);
     if (count<0) count=0;
     
-    iref = (long)floor(pos-SP_PSF_LEN/2+0.5);
-    if (iref<0) iref=0;
-    if (iref>spectro->npix[i_arm]-SP_PSF_LEN) iref=spectro->npix[i_arm]-SP_PSF_LEN;
-    gsSpectroDist_Oversampled(spectro,i_arm,lambda,pos-iref,0,SP_PSF_LEN*spectro->oversampling,FR);
-    for(j=0;j<SP_PSF_LEN*spectro->oversampling;j++)
-      Noise[iref*spectro->oversampling+j] += count*FR[j];
+    iref = (long)floor((pos-SP_PSF_LEN/2)*spectro->oversampling);
+    pos = SP_PSF_LEN/2+pos-floor(pos);
+    gsSpectroDist(spectro,i_arm,lambda,pos,0,SP_PSF_LEN,FR,spectro->oversampling);
+    for(ipix=0;ipix<SP_PSF_LEN*spectro->oversampling;ipix++)
+    {
+      if (0 <= ipix+iref && ipix+iref < spectro->npix[i_arm]*spectro->oversampling) {
+        Noise[ipix+iref] += FR[ipix]*count;
+      }
+    }
   }
 }
 
@@ -734,7 +739,7 @@ void gsAddSkyLines_UVES(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, dou
      */ 
     count *= airmass / 1.1 * exp(-gsAtmContOp(obs, lambda) * airmass / 1.086);
       
-    gsAddConvolvedSkyLine(spectro, obs, i_arm, lambda, count, Noise, FR);
+    gsAddSkyLine(spectro, obs, i_arm, lambda, count, Noise, FR);
   }
 }
 
@@ -757,7 +762,7 @@ void gsAddSkyLines_NIR(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, doub
     count *= airmass * exp(-gsAtmContOp(obs, lambda) * airmass / 1.086)
              * exp((14.8-15.8)/1.086);
 
-    gsAddConvolvedSkyLine(spectro, obs, i_arm, lambda, count, Noise, FR);
+    gsAddSkyLine(spectro, obs, i_arm, lambda, count, Noise, FR);
   }
 }
 
@@ -1098,19 +1103,11 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
   /* Do computations only over a finite interval, in this case 32 pixels around the feature. */
 #define NP_WIN 32
   long ipix,iref;
-  double pos, counts;
+  double pos;
+  double counts;
   double FR[NP_WIN];
   double trans, den;
   double x;
-
-  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) Signal[ipix] = 0.;
-
-  /* Find feature location; exit if no signal */
-  pos = (lambda-spectro->lmin[i_arm])/spectro->dl[i_arm];
-  iref = (long)floor(pos-NP_WIN/2.0);
-  if (iref<-NP_WIN || iref>=spectro->npix[i_arm]) return;
-  if (iref<0) iref=0;
-  if (iref>spectro->npix[i_arm]-NP_WIN) iref=spectro->npix[i_arm]-NP_WIN;
 
   /* Atmospheric transmission */
   trans = den = 0.;
@@ -1130,8 +1127,17 @@ void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lam
            * gsThroughput(spectro,i_arm,lambda) * 1e4;
 
   /* Get distribution of light over pixels */
-  gsSpectroDist(spectro,i_arm,lambda,pos-iref,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR);
-  for(ipix=0;ipix<NP_WIN;ipix++) Signal[ipix+iref] = FR[ipix]*counts;
+  pos = gsGetPixel(spectro, i_arm, lambda);
+  iref = (long)floor(pos) - NP_WIN/2;
+  pos = NP_WIN / 2 + pos - floor(pos);
+  gsSpectroDist(spectro,i_arm,lambda,pos,sigma_v/299792.458*lambda/spectro->dl[i_arm],NP_WIN,FR,1);
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
+    if (0 <= ipix - iref || ipix - iref < NP_WIN) {
+      Signal[ipix] = 0.;
+    } else {
+      Signal[ipix] = FR[ipix-iref]*counts;
+    }
+  }
   return;
 }
 
@@ -1365,17 +1371,18 @@ double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double 
  */
 double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda) {
   int j;
-  double FR[5*SP_PSF_LEN];
+  double FR[SP_PSF_LEN];
   double den, num;
   double trans;
 
-  /* Atmospheric transmission */
-  gsSpectroDist(spectro,i_arm,lambda,7.5,0,SP_PSF_LEN,FR);
+  /* Convolve atmospheric transmission with the local PSF centered on lambda
+   * Assume lambda is at pixel center. */
+  gsSpectroDist(spectro,i_arm,lambda,SP_PSF_LEN/2,0,SP_PSF_LEN,FR,1);
   num = den = 0.0;
-  for(j=0;j<5*SP_PSF_LEN;j++) {
-    trans = gsAtmTrans(obs,lambda+(0.2*j-SP_PSF_LEN/2+0.5)*spectro->dl[i_arm]);
-    num += FR[j/5]*trans;
-    den += FR[j/5];
+  for(j=0;j<SP_PSF_LEN;j++) {
+    trans = gsAtmTrans(obs,lambda+(j-SP_PSF_LEN/2)*spectro->dl[i_arm]);
+    num += FR[j]*trans;
+    den += FR[j];
   }
   trans = num/den;
   return trans;
@@ -2013,6 +2020,20 @@ char* gsGetArgPositional(int argc, char* argv[], int i) {
     gsError("Positional argument %d must be specified.", i);
   }
   return argv[i];
+}
+
+int gsGetArgNamedInt(int argc, char* argv[], const char* name, int default_value) {
+  int i;
+  for (i = 1; i < argc; i++) {
+    if (strcmp(name, argv[i]) == 0) {
+      if (i < argc - 1) {
+        return atoi(argv[i + 1]);
+      } else {
+        gsError("A value for named argument %s must be specified.", name);
+      }
+    }
+  }
+  return default_value;
 }
 
 int gsGetArgNamedBoolean(int argc, char* argv[], const char* name) {

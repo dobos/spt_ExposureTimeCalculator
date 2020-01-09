@@ -20,11 +20,11 @@ PARAMS getParams(int argc, char* argv[]) {
 
 void updateSpectroConfig(SPECTRO_ATTRIB* spectro, PARAMS* params) {
     /* Reduce number of pixels for faster testing */
-    int ia;
-    for (ia = 0; ia < spectro->N_arms; ia ++) {
-        spectro->npix[ia] = 128;
-        spectro->lmax[ia] = spectro->lmin[ia] * 128 * spectro->dl[ia];
-    }
+    // int ia;
+    // for (ia = 0; ia < spectro->N_arms; ia ++) {
+    //    spectro->npix[ia] = 128;
+    //    spectro->lmax[ia] = spectro->lmin[ia] * 128 * spectro->dl[ia];
+    //}
 
     spectro->diffuse_stray=0.2;                     // Bump this up a bit to see if works
     spectro->oversampling = params->oversampling;
@@ -50,24 +50,59 @@ OBS_ATTRIB createObsConfig() {
     return obs;
 }
 
-/* Pretabulate the point spread function
- * It depends on the wavelength and the distance (in pixels) from the center
+void ASSERT(int expr, int line) {
+    if (!expr) {
+        fprintf(stderr, "Assertion failed at line %d", line);
+        exit(1);
+    }
+}
+
+/* Pretabulate the point spread function at the center of each pixel
  * */
-void test_LineSpreadFunction(FILE* fp, SPECTRO_ATTRIB *spectro, int N) {
-    printf("Running test test_LineSpreadFunction");
+void test_SpectroDist(FILE* fp, SPECTRO_ATTRIB *spectro, int N) {
+    printf("Running test %s.\n", __func__);
 
     int i_arm, i;
     long ip;
     double lambda;
     double* fr;
     
-    fr = malloc(sizeof(double) * N);
+    fr = malloc(N * sizeof(double));
     for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
         for (ip = 0; ip < spectro->npix[i_arm]; ip++) {
-            lambda = spectro->lmin[i_arm] + (ip + 0.5) * spectro->dl[i_arm];
-            gsSpectroDist(spectro, i_arm, lambda, 0, 0, N, fr);
+            lambda = gsGetLambdaCenter(spectro, i_arm, ip);
+            gsSpectroDist(spectro, i_arm, lambda, N / 2.0, 0, N, fr, 1);
             fprintf(fp, "%d %ld %f ", spectro_arm(spectro, i_arm), ip, lambda);
             for (i = 0; i < N; i ++) {
+                fprintf(fp, "%f ", fr[i]);
+            }
+            fprintf(fp, "\n");
+
+            for (i = 0; i < N / 2; i ++) {
+                ASSERT(fabs(fr[i] - fr[N - i - 1]) < 1e-7, __LINE__);
+            }
+        }
+    }
+    free(fr);
+}
+
+/* Pretabulate the point spread function at an offset from the pixel center
+ * */
+void test_SpectroDist_Oversampled(FILE* fp, SPECTRO_ATTRIB *spectro, int N) {
+    printf("Running test %s.\n", __func__);
+
+    int i_arm, i;
+    long ip;
+    double lambda;
+    double* fr;
+    
+    fr = malloc(N * spectro->oversampling * sizeof(double));
+    for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
+        for (ip = 0; ip < spectro->npix[i_arm]; ip++) {
+            lambda = gsGetLambdaCenter(spectro, i_arm, ip);
+            gsSpectroDist(spectro, i_arm, lambda, N / 2.0, 0, N, fr, spectro->oversampling);
+            fprintf(fp, "%d %ld %f ", spectro_arm(spectro, i_arm), ip, lambda);
+            for (i = 0; i < N * spectro->oversampling; i ++) {
                 fprintf(fp, "%f ", fr[i]);
             }
             fprintf(fp, "\n");
@@ -76,30 +111,69 @@ void test_LineSpreadFunction(FILE* fp, SPECTRO_ATTRIB *spectro, int N) {
     free(fr);
 }
 
-void test_LineSpreadFunction_Oversampled(FILE* fp, SPECTRO_ATTRIB *spectro, int N) {
-    printf("Running test test_LineSpreadFunction_Oversampled");
+void test_FracTrace(FILE* fp, SPECTRO_ATTRIB *spectro) {
+    printf("Running test %s.\n", __func__);
 
-    int i_arm, i;
+    int i_arm;
     long ip;
-    double lambda;
-    double* fr;
-    
-    fr = malloc(sizeof(double) * N);
+    double lambda, frac_0, frac_1;
+
     for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
         for (ip = 0; ip < spectro->npix[i_arm]; ip++) {
-            lambda = spectro->lmin[i_arm] + (ip + 0.5) * spectro->dl[i_arm];   
-            gsSpectroDist_Oversampled(spectro, i_arm, lambda, 0, 0, N, fr);
+            lambda = gsGetLambdaCenter(spectro, i_arm, ip);
+            frac_0 = gsFracTrace(spectro, i_arm, lambda, 0);
+            frac_1 = gsFracTrace(spectro, i_arm, lambda, 1);
             fprintf(fp, "%d %ld %f ", spectro_arm(spectro, i_arm), ip, lambda);
-            for (i = 0; i < N; i ++) {
-                fprintf(fp, "%f ", fr[i]);
-            }
-            fprintf(fp, "\n");
+            fprintf(fp, "%f %f\n", frac_0, frac_1);
         }
     }
-    free(fr);
+}
+
+void test_AtmTrans(FILE* fp, SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs) {
+    printf("Running test %s.\n", __func__);
+
+    int i_arm;
+    long ip;
+    double lambda, atm_0, atm_1, atm_2;
+
+    for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
+        for (ip = 0; ip < spectro->npix[i_arm]; ip++) {
+            lambda = gsGetLambdaCenter(spectro, i_arm, ip);
+            atm_0 = gsAtmTrans(obs, lambda);
+            atm_1 = gsAtmTransInst(spectro, obs, i_arm, lambda);
+            atm_2 = gsAtmContOp(obs, lambda);
+            fprintf(fp, "%d %ld %f ", spectro_arm(spectro, i_arm), ip, lambda);
+            fprintf(fp, "%f %f %f\n", atm_0, atm_1, atm_2);
+        }
+    }
+}
+
+void test_GetSignal(FILE* fp, SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs) {
+    printf("Running test %s.\n", __func__);
+
+    int i_arm;
+    long ip;
+    double lambda;
+    double *signal_1, *signal_2;
+
+    for (i_arm = 0; i_arm < spectro->N_arms; i_arm++) {
+        signal_1 = malloc(spectro->npix[i_arm] * sizeof(double));
+        signal_2 = malloc(spectro->npix[i_arm] * sizeof(double));
+        gsGetSignal(spectro, obs, i_arm, 680, 1e-17, 30, signal_1);
+        gsGetSignal(spectro, obs, i_arm, spectro->lmin[i_arm] + 5 * spectro->dl[i_arm], 1e-17, 30, signal_2);
+        for (ip = 0; ip < spectro->npix[i_arm]; ip++) {
+            lambda = gsGetLambdaCenter(spectro, i_arm, ip);
+            fprintf(fp, "%d %ld %f ", spectro_arm(spectro, i_arm), ip, lambda);
+            fprintf(fp, "%f %f\n", signal_1[ip], signal_2[ip]);
+        }
+        free(signal_1);
+        free(signal_2);
+    }
 }
 
 void test_AddSkyLines(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
+    printf("Running test %s.\n", __func__);
+
     int ip;
     int i_arm ;
     double lambda;
@@ -117,6 +191,8 @@ void test_AddSkyLines(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
 }
 
 void test_AddSkyContinuum(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
+    printf("Running test %s.\n", __func__);
+
     int ip;
     int i_arm ;
     double lambda;
@@ -135,6 +211,8 @@ void test_AddSkyContinuum(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
 }
 
 void test_AddStrayLight(FILE* fp, SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs) {
+    printf("Running test %s.\n", __func__);
+
     int ip;
     int i_arm ;
     double lambda, sample_factor;
@@ -179,29 +257,41 @@ int main(int argc, char* argv[]) {
 
     /* Run tests */
 
-    /*
-    fp = gsOpenOutputFile("test_LineSpreadFunction.dat");
-    test_LineSpreadFunction(fp, &spectro, 8);
+    fp = gsOpenOutputFile("test_SpectroDist_Even.dat");
+    test_SpectroDist(fp, &spectro, 4);
     gsCloseOutputFile(fp);
-    */
 
-    /*
-    fp = gsOpenOutputFile("test_LineSpreadFunction_Oversampled.dat");
-    test_LineSpreadFunction_Oversampled(stdout, &spectro, 8);
+    fp = gsOpenOutputFile("test_SpectroDist_Odd.dat");
+    test_SpectroDist(fp, &spectro, 5);
     gsCloseOutputFile(fp);
-    */
 
-    /*
+    fp = gsOpenOutputFile("test_SpectroDist_Oversampled_Even.dat");
+    test_SpectroDist_Oversampled(fp, &spectro, 2);
+    gsCloseOutputFile(fp);
+
+    fp = gsOpenOutputFile("test_SpectroDist_Oversampled_Odd.dat");
+    test_SpectroDist_Oversampled(fp, &spectro, 3);
+    gsCloseOutputFile(fp);
+
+    fp = gsOpenOutputFile("test_FracTrace.dat");
+    test_FracTrace(fp, &spectro);
+    gsCloseOutputFile(fp);
+
+    fp = gsOpenOutputFile("test_AtmTrans.dat");
+    test_AtmTrans(fp, &spectro, &obs);
+    gsCloseOutputFile(fp);
+
+    fp = gsOpenOutputFile("test_GetSignal.dat");
+    test_GetSignal(fp, &spectro, &obs);
+    gsCloseOutputFile(fp);
+
     fp = gsOpenOutputFile("test_AddSkyLines.dat");
     test_AddSkyLines(fp, &spectro, &obs);
     gsCloseOutputFile(fp);
-    */
 
-    /*
     fp = gsOpenOutputFile("test_AddSkyContinuum.dat");
     test_AddSkyContinuum(fp, &spectro, &obs);
     gsCloseOutputFile(fp);
-    */
 
     fp = gsOpenOutputFile("test_AddStrayLight.dat");
     test_AddStrayLight(fp, &spectro, &obs);

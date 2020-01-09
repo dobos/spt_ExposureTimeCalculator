@@ -35,7 +35,7 @@
 /* Maximum length of throughput table */
 #define MAXNTHR 1024
 
-/* Spectrograph PSF length (must be even) */
+/* Half length of spectrograph PSF */
 #define SP_PSF_LEN 64
 
 /* Spectrograph attributes structure */
@@ -112,6 +112,7 @@ typedef struct {
 double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda);
 double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm);
 double gsThroughput(SPECTRO_ATTRIB *spectro, int i_arm, double lambda);
+double gsAtmTrans(OBS_ATTRIB *obs, double lambda);
 double gsAtmContOp(OBS_ATTRIB *obs, double lambda);
 double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
@@ -121,11 +122,12 @@ double gsEBVToAttn(OBS_ATTRIB* obs, double lambda);
 double gsGetSampleFactor(SPECTRO_ATTRIB* spectro, int i_arm);
 
 double gsSpectroMTF(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double u);
-void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos, double sigma, int N, double *fr);
-void gsSpectroDist_Oversampled(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos, double sigma, int N, double *fr);
+void gsSpectroDist(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, double pos, double sigma, int N, double *fr, int oversampling);
 double gsFracTrace(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, int tr);
 
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod);
+void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda,
+  double F, double sigma_v, double *Signal);
 
 double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double z,
   double F, double sigma_v, double src_cont, double ROII, double *Noise, int snrType);
@@ -136,6 +138,12 @@ double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, doub
 void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double *Noise, MAGFILE* magfile2,
   double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve);
 
+double gsGetLambda(SPECTRO_ATTRIB* spectro, int i_arm, long i_pix);
+double gsGetLambdaCenter(SPECTRO_ATTRIB* spectro, int i_arm, long i_pix);
+double gsGetPixel(SPECTRO_ATTRIB* spectro, int i_arm, double lambda);
+
+void gsAddSkyLine(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm,
+  double lambda, double count, double *Noise, double *FR);
 void gsAddSkyLines(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
 void gsAddLunarContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
 void gsAddSkyContinuum(SPECTRO_ATTRIB* spectro, OBS_ATTRIB* obs, int i_arm, double* Noise);
@@ -162,6 +170,7 @@ void gsReadObsConfig_Legacy(OBS_ATTRIB* obs, SPECTRO_ATTRIB* spectro);
 
 /* Command-line argument parsing */
 char* gsGetArgPositional(int argc, char* argv[], int i);
+int gsGetArgNamedInt(int argc, char* argv[], const char* name, int default_value);
 int gsGetArgNamedBoolean(int argc, char* argv[], const char* name);
 
 void gsError(const char* message, ...);

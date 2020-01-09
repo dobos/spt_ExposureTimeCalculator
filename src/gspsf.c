@@ -44,19 +44,20 @@ int main(int argc, char* argv[]) {
     gsCloseConfigFile(fp);
 
     /* Pretabulate the point spread function
-     * It depends on the wavelength and the distance (in pixels) from the center */
+     * It depends on the wavelength and the distance (in pixels) from the center 
+     * Compute it in 2N + 1 pixels, centered on every pixel */
 
     fp = gsOpenOutputFile(params.psfFile);
     
-    fr = malloc(sizeof(double) * params.N);
+    fr = malloc((2 * params.N + 1) * sizeof(double));
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         for (ip = 0; ip < spectro.npix[i_arm]; ip++) {
+            // Take wavelength at the center of the pixel
             lambda = spectro.lmin[i_arm] + (ip + 0.5) * spectro.dl[i_arm];   
-            //pos = (lambda - spectro.lmin[i_arm]) / spectro.dl[i_arm];
-            gsSpectroDist(&spectro, i_arm, lambda, 0, 0, params.N, fr);
+            gsSpectroDist(&spectro, i_arm, lambda, params.N, 0, 2 * params.N + 1, fr, 1);
             tr = gsFracTrace(&spectro, i_arm, lambda, 0);
             fprintf(fp, "%d %ld %f ", spectro_arm(&spectro, i_arm), ip, lambda);
-            for (i = 0; i < params.N; i ++) {
+            for (i = 0; i < 2 * params.N + 1; i ++) {
                 fprintf(fp, "%f ", fr[i]);
             }
             fprintf(fp, "%f", tr);

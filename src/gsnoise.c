@@ -12,6 +12,7 @@ typedef struct {
     char* spectroConfig;
     char* obsConfig;
     char* noiseFile;
+    int oversampling;
     int addSkyLines;
     int addSkyContinuum;
     int addLunarContinuum;
@@ -25,6 +26,7 @@ PARAMS getParams(int argc, char* argv[]) {
         .spectroConfig = gsGetArgPositional(argc, argv, 1),
         .obsConfig = gsGetArgPositional(argc, argv, 2),
         .noiseFile = gsGetArgPositional(argc, argv, 3),
+        .oversampling = gsGetArgNamedInt(argc, argv, "--oversampling", 1),
         .addSkyLines = !gsGetArgNamedBoolean(argc, argv, "--no-sky-lines"),
         .addSkyContinuum = !gsGetArgNamedBoolean(argc, argv, "--no-sky-continuum"),
         .addLunarContinuum = !gsGetArgNamedBoolean(argc, argv, "--no-lunar-continuum"),
@@ -32,6 +34,7 @@ PARAMS getParams(int argc, char* argv[]) {
         .addDarkNoise = !gsGetArgNamedBoolean(argc, argv, "--no-dark"),
         .addReadoutNoise = !gsGetArgNamedBoolean(argc, argv, "--no-readout"),
     };
+
     return params;
 }
 
@@ -70,6 +73,7 @@ int main(int argc, char* argv[]) {
     
     // TODO: diffuse_stray should be in spectro config file but would need to change file format
     spectro.diffuse_stray = 0.02;
+    spectro.oversampling = params.oversampling;
 
     /* Allocate noise vectors */
     gsAllocArmVectors(&spectro, &sky);
@@ -112,9 +116,9 @@ int main(int argc, char* argv[]) {
     if (params.addStrayLight) {
         printf("Computing stray light ...\n");
         for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
-            temp = (double*)malloc((size_t)(spectro.npix[i_arm]*sizeof(double)));
+            temp = (double*)malloc((size_t)(spectro.npix[i_arm] * spectro.oversampling * sizeof(double)));
             sample_factor = gsGetSampleFactor(&spectro, i_arm);
-            for(i = 0; i < spectro.npix[i_arm]; i++) {
+            for(i = 0; i < spectro.npix[i_arm] * spectro.oversampling; i++) {
                 temp[i] = (sky[i_arm][i] + moon[i_arm][i]) / sample_factor;
             }
             gsAddStrayLight(&spectro, &obs, i_arm, stray[i_arm], temp);
@@ -137,8 +141,8 @@ int main(int argc, char* argv[]) {
     printf("Computing transmission functions ...\n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         printf(" //Arm%d//\n", i_arm);
-        for(i = 0; i < spectro.npix[i_arm]; i++) {
-            lambda = spectro.lmin[i_arm] + spectro.dl[i_arm] * i;
+        for(i = 0; i < spectro.npix[i_arm] * spectro.oversampling; i++) {
+            lambda = spectro.lmin[i_arm] + (i + 0.5) * spectro.dl[i_arm] / spectro.oversampling;
             atm_contop[i_arm][i] = gsAtmContOp(&obs, lambda);
             atm_trans[i_arm][i] = gsAtmTransInst(&spectro, &obs, i_arm, lambda);
             conv[i_arm][i] = gsConversionFunction(&spectro, &obs, i_arm, lambda);
@@ -151,8 +155,8 @@ int main(int argc, char* argv[]) {
     fprintf(fp, "# arm i lambda dlambda sky moon stray dark readout conv sample_factor atm_contop atm_trans \n");
     for (i_arm = 0; i_arm < spectro.N_arms; i_arm++) {
         sample_factor = gsGetSampleFactor(&spectro, i_arm);
-        for (i = 0; i < spectro.npix[i_arm]; i++) {
-            lambda = spectro.lmin[i_arm] + spectro.dl[i_arm] * (i + 0.5);
+        for (i = 0; i < spectro.npix[i_arm] * spectro.oversampling; i++) {
+            lambda = spectro.lmin[i_arm] + (i + 0.5) * spectro.dl[i_arm] / spectro.oversampling;
             dl = spectro.dl[i_arm];
 	        fprintf(fp, "%1d %4ld %7.4lf %7.4lf %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le\n", 
                 spectro_arm(&spectro, i_arm), i, lambda, dl,
