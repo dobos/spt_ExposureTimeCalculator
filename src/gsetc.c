@@ -5,6 +5,240 @@
 
 #include "libgsetc.h"
 
+/* Generates the signal/noise ratio for a single emission line given the noise vector Noise taking into consideration the continuum effect.
+ *
+ * Line parameters are lambda (nm), F (erg/cm2/s), sigma_v (km/s), r_eff (arcsec),
+ * decent (arcsec), fieldang (degrees).
+ *
+ * The "snrTypes" types are:
+ *  0 = 1D optimal
+ *  1 = uniform matched filter
+ */
+double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double lambda,
+  double F, double sigma_v, double *Noise, int snrType, MAGFILE* magfile2) {
+
+  long ipix,Npix;
+  double SNR = 0;
+  double numer, denom;
+  double *Signal;
+  /* Added by K.Yabe for input mag. file: 20160205 */
+  double counts, trans, den, x;
+  int flag = 0;
+  double src_cont;
+
+  if(mag==-99.9) flag=1;
+  /* Added by K.Yabe for input mag. file: 20160205 : end */
+
+  /* Added by Y.Moritani for input mag. file: 20150422 */
+  /* interpolate magnitude for a given lambda */
+  /* mag is used as a fllag: -99.9 ... use input file*/
+  if (flag) {
+    mag = gsInterpolateMagfile(magfile2, lambda);
+  }
+
+  /* Atmospheric transmission */
+  trans = den = 0.;
+  for(x=-4;x<4.01;x+=.2) {
+    trans += gsAtmTrans(obs,lambda) * exp(-0.5*x*x);
+    den += exp(-0.5*x*x);
+  }
+  trans /= den;
+ 
+  /* Determine how many counts per Hz we get from the object continuum */
+  src_cont = 3.631e-20 * pow(10., -0.4*mag); /* in erg/cm2/s */
+  counts = src_cont * trans
+             * pow(10., -0.4*gsGalactic_Alambda__EBV(lambda)*obs->EBV)
+             * gsGeometricThroughput(spectro,obs,lambda)
+             * gsFracTrace(spectro,i_arm,lambda,0)
+             * PHOTONS_PER_ERG_1NM * lambda * obs->t_exp 
+             * gsAeff(spectro,obs,i_arm) 
+             * gsThroughput(spectro,i_arm,lambda) * 1e4;
+  #ifdef HGCDTE_SUTR
+    if (spectro->Dtype[i_arm]==1) counts *= 1.2;
+  #endif
+  /* Convert from per Hz --> l-per pixel */
+  counts *= 2.99792458e17*spectro->dl[i_arm]/(lambda*lambda);
+
+  /* Allocate and get the signal vector */
+  Npix = spectro->npix[i_arm];
+  Signal = (double*)malloc((size_t)(Npix*sizeof(double)));
+  gsGetSignal(spectro,obs,i_arm,lambda,F,sigma_v,Signal);
+
+  /* 1D optimal */
+  if (snrType == 0) {
+    SNR = 0;
+    for(ipix=0;ipix<Npix;ipix++) SNR += Signal[ipix]*Signal[ipix]/(counts+Noise[ipix]);
+    SNR = sqrt(SNR);
+  }
+
+  /* uniform matched filter */
+  if (snrType == 1) {
+    numer = denom = 0;
+    for(ipix=0;ipix<Npix;ipix++) {
+      numer += Signal[ipix]*Signal[ipix];
+      denom += Signal[ipix]*Signal[ipix]*(counts+Noise[ipix]);
+    }
+    SNR = numer>=0.001? numer/sqrt(denom): 0;
+  }
+
+  free((char*)Signal);
+  return(SNR);
+}
+
+/* Obtains the SNR for the [OII] doublet.
+ * Line parameters are z, F (erg/cm2/s), sigma_v (km/s), r_eff (arcsec),
+ * src_cont (erg/cm2/s/Hz), and ROII.
+ * Observing parameters are decent (arcsec), fieldang (degrees).
+ *
+ * The "snrTypes" types are:
+ *  0 = 1D optimal, brighter feature, assuming 1:1 ratio
+ *  1 = uniform matched filter, brighter feature, assuming 1:1 ratio
+ */
+/*
+ * in main loop
+ * snr[ia] = gsGetSNR_OII(&spectro,&obs,ia,z,1e-16,70.,REF_SIZE,0.,1.,decent,fieldang,spNoise[ia],t,0x0,snrType)
+ * *sqrt((double)n_exp);
+ */
+double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double z,
+  double F, double sigma_v, double src_cont, double ROII, double *Noise, int snrType) {
+
+  int i;
+  double SNR=0.;
+  double lambda[2], indivSNR[2], frac[2];
+  long Npix, ipix;
+  double *Signal0, *Signal1, *myNoise;
+#ifndef NO_OBJ_CONTINUUM
+  double counts, ll, trans, den, x;
+#endif
+
+  lambda[0] = 372.71*(1.+z);
+  lambda[1] = 372.98*(1.+z);
+
+  /* in this simulation ROII = 1. ; comment by Y. Moritani*/
+  if (ROII<0.667) ROII=0.667;
+  if (ROII>3.87) ROII=3.87;
+
+  frac[0] = ROII/(1.+ROII);
+  frac[1] = 1./(1.+ROII);
+
+  /* Build noise vector including continuum */
+  Npix = spectro->npix[i_arm];
+  myNoise = (double*)malloc((size_t)(Npix*sizeof(double)));
+  for(ipix=0;ipix<Npix;ipix++) myNoise[ipix]=Noise[ipix];
+#ifndef NO_OBJ_CONTINUUM
+  /* Atmospheric transmission */
+  trans = den = 0.;
+  for(x=-4;x<4.01;x+=.2) {
+    trans += gsAtmTrans(obs,lambda[0] + (0.5+0.5*x)*(lambda[1]-lambda[0])) * exp(-0.5*x*x);
+    den += exp(-0.5*x*x);
+  }
+  trans /= den;
+ 
+  /* Determine how many counts per Hz we get from the object continuum */
+  ll = (lambda[0]+lambda[1])/2.;
+  counts = src_cont * trans
+           * pow(10., -0.4*gsGalactic_Alambda__EBV(ll)*obs->EBV)
+           * gsGeometricThroughput(spectro,obs,ll)
+           * gsFracTrace(spectro,i_arm,ll,0)
+           * PHOTONS_PER_ERG_1NM * ll * obs->t_exp 
+           * gsAeff(spectro,obs,i_arm)
+           * gsThroughput(spectro,i_arm,ll) * 1e4;
+#ifdef HGCDTE_SUTR
+  if (spectro->Dtype[i_arm]==1) counts *= 1.2;
+#endif
+  /* Convert from per Hz --> l-per pixel */
+  counts *= 2.99792458e17*spectro->dl[i_arm]/(ll*ll);
+
+  /* Add to all points in the data vector ... not really correct everywhere but good
+   * near the line where it matters.
+   */
+  for(ipix=0;ipix<Npix;ipix++) myNoise[ipix] += counts;
+#endif
+
+  /* 1D optimal - brighter feature */
+  if (snrType == 0) {
+    for(i=0;i<2;i++)
+      indivSNR[i] = gsGetSNR(spectro,obs,i_arm,lambda[i],frac[i]*F,sigma_v,myNoise,0);
+    SNR = indivSNR[0]>indivSNR[1]? indivSNR[0]: indivSNR[1];
+  }
+
+  /* uniform matched filter - brighter feature */
+  if (snrType == 1) {
+    for(i=0;i<2;i++)
+      indivSNR[i] = gsGetSNR(spectro,obs,i_arm,lambda[i],frac[i]*F,sigma_v,myNoise,1);
+    SNR = indivSNR[0]>indivSNR[1]? indivSNR[0]: indivSNR[1];
+  }
+
+  /* Combined "optimal" of the 2 lines */
+  if (snrType == 2) {
+    Npix = spectro->npix[i_arm];
+    Signal0 = (double*)malloc((size_t)(Npix*sizeof(double)));
+    Signal1 = (double*)malloc((size_t)(Npix*sizeof(double)));
+    gsGetSignal(spectro,obs,i_arm,lambda[0],frac[0]*F,sigma_v,Signal0);
+    gsGetSignal(spectro,obs,i_arm,lambda[1],frac[1]*F,sigma_v,Signal1);
+    SNR = 0;
+    for(ipix=0;ipix<Npix;ipix++) SNR += (Signal0[ipix]+Signal1[ipix])*(Signal0[ipix]+Signal1[ipix])/myNoise[ipix];
+    SNR = sqrt(SNR);
+    free((char*)Signal0);
+    free((char*)Signal1);
+  }
+
+  free((char*)myNoise);
+  return(SNR);
+}
+
+/* Obtains the continuum S/N per pixel per exposure as a function of the source magnitude (AB) in the
+ * specified arm. Output is to out_SNR_curve[spectro->npix[i_arm]].
+ */
+
+/* Modified by Y.Moritani for input mag. file: 20150422 :*/
+void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag,
+  double *Noise, MAGFILE* magfile2,
+  double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve) {
+
+  long ipix;
+  double lambda, src_cont, counts;
+  double sample_factor;
+
+  /* Added by Y.Moritani for input mag. file: 20150422 */
+  int flag = 0;
+
+  if(mag==-99.9) flag=1;
+  /* Added by Y.Moritani for input mag. file: 20150422 : end */
+
+  /* Pre-factor for sampling the Poisson distribution */
+  sample_factor = 1.0;
+#ifdef HGCDTE_SUTR
+  if (spectro->Dtype[i_arm]==1) sample_factor = 1.2;
+#endif
+
+  for(ipix=0;ipix<spectro->npix[i_arm];ipix++) {
+    gsPrintProgress(spectro->npix[i_arm], ipix);
+    lambda = spectro->lmin[i_arm] + spectro->dl[i_arm]*ipix;
+ 
+    /* Added by Y.Moritani for input mag. file: 20150422 */
+    /* interpolate magnitude for a given lambda */
+    /* mag is used as a fllag: -99.9 ... use input file*/
+    if(flag) {  
+      mag = gsInterpolateMagfile(magfile2, lambda);
+    }
+    
+    /* Determine how many counts per Hz we get from the object continuum */
+    src_cont = gsMagToFlux(mag); /* in erg/cm2/s */
+    counts = src_cont * gsConversionFunction(spectro,obs,i_arm,lambda);
+
+    /* Report S/N ratio */
+    out_SNR_curve[ipix] = counts/sqrt(sample_factor*counts + Noise[ipix]);
+    /* Modified by K. Yabe 20150525 */
+    out_count_curve[ipix] = counts;
+    out_noise_curve[ipix] = sample_factor*counts + Noise[ipix];
+    out_mag_curve[ipix] = mag;
+    out_trans_curve[ipix] = counts / src_cont;
+    out_sample_factor_curve[ipix] = sample_factor;
+  }
+  return;
+}
+
 /* === MAIN PROGRAM === */
 
 /* Reads observation parameters from stdin.

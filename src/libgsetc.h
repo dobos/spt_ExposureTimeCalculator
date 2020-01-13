@@ -109,12 +109,15 @@ typedef struct {
 
 /* Exported functions */
 
+double gsGalactic_Alambda__EBV(double lambda);
 double gsGeometricThroughput(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, double lambda);
 double gsAeff(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm);
 double gsThroughput(SPECTRO_ATTRIB *spectro, int i_arm, double lambda);
 double gsAtmTrans(OBS_ATTRIB *obs, double lambda);
 double gsAtmContOp(OBS_ATTRIB *obs, double lambda);
 double gsAtmTransInst(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
+double gsGetSNR(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda,
+  double F, double sigma_v, double *Noise, int snrType);
 double gsConversionFunction(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda);
 
 double gsMagToFlux(double mag);
@@ -128,15 +131,6 @@ double gsFracTrace(SPECTRO_ATTRIB *spectro, int i_arm, double lambda, int tr);
 void gsGetNoise(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double *Noise, double *SkyMod);
 void gsGetSignal(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double lambda,
   double F, double sigma_v, double *Signal);
-
-double gsGetSNR_OII(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double z,
-  double F, double sigma_v, double src_cont, double ROII, double *Noise, int snrType);
-
-double gsGetSNR_Single(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double lambda,
-  double F, double sigma_v, double *Noise, int snrType, MAGFILE* magfile2);
-
-void gsGetSNR_Continuum(SPECTRO_ATTRIB *spectro, OBS_ATTRIB *obs, int i_arm, double mag, double *Noise, MAGFILE* magfile2,
-  double *out_SNR_curve, double *out_count_curve, double *out_noise_curve, double *out_mag_curve, double *out_trans_curve, double *out_sample_factor_curve);
 
 double gsGetLambda(SPECTRO_ATTRIB* spectro, int i_arm, long i_pix);
 double gsGetLambdaCenter(SPECTRO_ATTRIB* spectro, int i_arm, long i_pix);
