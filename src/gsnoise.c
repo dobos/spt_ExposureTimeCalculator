@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
         sample_factor = gsGetSampleFactor(&spectro, i_arm);
         for (i = 0; i < spectro.npix[i_arm] * spectro.oversampling; i++) {
             lambda = spectro.lmin[i_arm] + (i + 0.5) * spectro.dl[i_arm] / spectro.oversampling;
-            dl = spectro.dl[i_arm];
+            dl = spectro.dl[i_arm] / spectro.oversampling;
 	        fprintf(fp, "%1d %4ld %7.4lf %7.4lf %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le %11.5le\n", 
                 spectro_arm(&spectro, i_arm), i, lambda, dl,
                 sky[i_arm][i], moon[i_arm][i], stray[i_arm][i], dark[i_arm][i], readout[i_arm][i], 
